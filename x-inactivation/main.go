@@ -99,9 +99,18 @@ func run(component string, args []string) int {
 		}
 	}
 
-	binary := env("KYVERNETRIA_BIN_DIR", filepath.Dir(os.Args[0])) + "/" + component + "." + allele
+	binary := filepath.Join(env("KYVERNETRIA_BIN_DIR", executableDir()), component+"."+allele)
 	logf(component, "expressing %s (%s)", allele, binary)
 	return supervise(component, cell, allele, binary, args)
+}
+
+// executableDir is where the wrapper itself lives. os.Args[0] is not enough:
+// kubeadm starts components by bare name, resolved through PATH.
+func executableDir() string {
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Dir(exe)
+	}
+	return "/usr/local/bin"
 }
 
 // supervise runs the component and restarts the container (by exiting) when

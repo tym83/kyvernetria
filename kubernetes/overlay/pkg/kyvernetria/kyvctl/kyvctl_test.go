@@ -31,10 +31,10 @@ import (
 func TestExplain(t *testing.T) {
 	for msg, want := range map[string]string{
 		`The connection to the server 127.0.0.1:6443 was refused - did you specify the right host or port? dial tcp 127.0.0.1:6443: connect: connection refused`: "isn't answering yet",
-		`Error from server (Forbidden): pods is forbidden: User "alice" cannot list resource "pods" in API group "" in the namespace "default"`:                    `signed in as alice, and that identity isn't allowed to list pods`,
-		`Error from server (NotFound): deployments.apps "api" not found`: `couldn't find deployments.apps "api"`,
-		`error: the server doesn't have a resource type "widgets"`:         `doesn't know the kind "widgets"`,
-		`something nobody has seen before`:                                 "",
+		`Error from server (Forbidden): pods is forbidden: User "alice" cannot list resource "pods" in API group "" in the namespace "default"`:                  `signed in as alice, and that identity isn't allowed to list pods`,
+		`Error from server (NotFound): deployments.apps "api" not found`:                                                                                         `couldn't find deployments.apps "api"`,
+		`error: the server doesn't have a resource type "widgets"`:                                                                                               `doesn't know the kind "widgets"`,
+		`something nobody has seen before`: "",
 	} {
 		got := Explain(msg)
 		if want == "" && got != "" || want != "" && !strings.Contains(got, want) {

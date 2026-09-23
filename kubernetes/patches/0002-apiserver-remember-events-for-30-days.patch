@@ -1,0 +1,22 @@
+diff --git a/pkg/controlplane/apiserver/options/options.go b/pkg/controlplane/apiserver/options/options.go
+index c0da55c1..8a1d61ee 100644
+--- a/pkg/controlplane/apiserver/options/options.go
++++ b/pkg/controlplane/apiserver/options/options.go
+@@ -43,6 +43,8 @@ import (
+ 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
+ 	"k8s.io/kubernetes/pkg/serviceaccount"
+ 	"k8s.io/kubernetes/pkg/serviceaccount/externaljwt/plugin"
++
++	"k8s.io/kubernetes/pkg/kyvernetria"
+ )
+ 
+ // Options define the flags and validation for a generic controlplane. If the
+@@ -126,7 +128,7 @@ func NewOptions() *Options {
+ 		Traces:                  genericoptions.NewTracingOptions(),
+ 
+ 		EnableLogsHandler:                   false,
+-		EventTTL:                            1 * time.Hour,
++		EventTTL:                            kyvernetria.EventTTL,
+ 		AggregatorRejectForwardingRedirects: true,
+ 		SystemNamespaces:                    []string{metav1.NamespaceSystem, metav1.NamespacePublic, metav1.NamespaceDefault},
+ 		CoordinatedLeadershipLeaseDuration:  15 * time.Second,

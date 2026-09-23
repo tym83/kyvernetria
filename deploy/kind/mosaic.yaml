@@ -1,0 +1,37 @@
+# A Kyvernetria cluster in kind: three control-plane nodes, each silencing
+# one of the two control-plane alleles at first boot, plus one worker.
+#
+#   hack/build.sh all
+#   kind create cluster --config deploy/kind/mosaic.yaml --image kyvernetria/node:v1.37.0-kyvernetria.0
+#   _output/darwin-arm64/kyvctl mosaic
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kyvernetria
+nodes:
+  - role: control-plane
+  - role: control-plane
+  - role: control-plane
+  - role: worker
+kubeadmConfigPatches:
+  # x-inactivation keeps each node's allele choice in /var/lib/kyvernetria;
+  # all three components on a node share it, like one X chromosome.
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraVolumes:
+        - name: kyvernetria
+          hostPath: /var/lib/kyvernetria
+          mountPath: /var/lib/kyvernetria
+          pathType: DirectoryOrCreate
+    controllerManager:
+      extraVolumes:
+        - name: kyvernetria
+          hostPath: /var/lib/kyvernetria
+          mountPath: /var/lib/kyvernetria
+          pathType: DirectoryOrCreate
+    scheduler:
+      extraVolumes:
+        - name: kyvernetria
+          hostPath: /var/lib/kyvernetria
+          mountPath: /var/lib/kyvernetria
+          pathType: DirectoryOrCreate

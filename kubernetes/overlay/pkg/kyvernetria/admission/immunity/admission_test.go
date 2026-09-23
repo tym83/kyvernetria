@@ -33,11 +33,11 @@ import (
 
 func TestFloatingTag(t *testing.T) {
 	for image, want := range map[string]bool{
-		"nginx":                        true,
-		"nginx:latest":                 true,
-		"nginx:1.27":                   false,
-		"registry:5000/nginx":          true,
-		"registry:5000/nginx:1.27":     false,
+		"nginx":                         true,
+		"nginx:latest":                  true,
+		"nginx:1.27":                    false,
+		"registry:5000/nginx":           true,
+		"registry:5000/nginx:1.27":      false,
 		"nginx@sha256:0123456789abcdef": false,
 	} {
 		if got := FloatingTag(image); got != want {

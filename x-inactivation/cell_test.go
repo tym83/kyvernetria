@@ -153,8 +153,11 @@ func TestWrapperExecsExpressedAllele(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(state, "x-inactivation"), []byte("Xp\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(wrapper, "--secure-port=6443")
-	cmd.Env = append(os.Environ(), "KYVERNETRIA_STATE_DIR="+state)
+	// Started by bare name through PATH, the way kubeadm static pods do it.
+	cmd := exec.Command("kube-apiserver", "--secure-port=6443")
+	cmd.Path, cmd.Err = wrapper, nil
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(os.Environ(), "KYVERNETRIA_STATE_DIR="+state, "PATH="+bin+":"+os.Getenv("PATH"))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)

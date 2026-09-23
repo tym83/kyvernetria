@@ -16,11 +16,12 @@ limitations under the License.
 
 // Package nobruteforce implements the NoBruteForce admission plugin.
 //
-// Models: much lower average physical aggression (Archer 2004). A human
-// deleting a running pod with grace period 0 (kubectl delete --force
-// --grace-period=0) is refused until the pod carries the discussed
-// annotation. Cluster components are not affected: the kubelet finishes
-// already-terminating pods with grace 0, and the pod GC collects orphans.
+// Models: lower average physical aggression, a moderate to large difference
+// (Archer 2004). A human deleting a running pod with grace period 0
+// (kubectl delete --force --grace-period=0) is refused until the pod carries
+// the discussed annotation. Cluster components are not affected: the kubelet
+// finishes already-terminating pods with grace 0, and the pod GC collects
+// orphans.
 package nobruteforce
 
 import (

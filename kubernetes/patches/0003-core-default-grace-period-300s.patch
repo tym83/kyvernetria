@@ -1,0 +1,22 @@
+diff --git a/pkg/apis/core/v1/defaults.go b/pkg/apis/core/v1/defaults.go
+index bad64466..47501b03 100644
+--- a/pkg/apis/core/v1/defaults.go
++++ b/pkg/apis/core/v1/defaults.go
+@@ -30,6 +30,8 @@ import (
+ 	corev1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
+ 	"k8s.io/kubernetes/pkg/features"
+ 	"k8s.io/kubernetes/pkg/util/parsers"
++
++	"k8s.io/kubernetes/pkg/kyvernetria"
+ )
+ 
+ func addDefaultingFuncs(scheme *runtime.Scheme) error {
+@@ -265,7 +267,7 @@ func SetDefaults_PodSpec(obj *v1.PodSpec) {
+ 		obj.SecurityContext = &v1.PodSecurityContext{}
+ 	}
+ 	if obj.TerminationGracePeriodSeconds == nil {
+-		period := int64(v1.DefaultTerminationGracePeriodSeconds)
++		period := int64(kyvernetria.DefaultTerminationGracePeriodSeconds)
+ 		obj.TerminationGracePeriodSeconds = &period
+ 	}
+ 	if obj.SchedulerName == "" {

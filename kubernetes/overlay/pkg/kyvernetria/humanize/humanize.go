@@ -20,7 +20,8 @@ limitations under the License.
 // Models: a small average female advantage in verbal fluency and more
 // social, person-directed word use (pronouns, "we", "you"; Newman et al.
 // 2008). It deliberately does not make messages longer than necessary:
-// women do not talk more (Mehl et al. 2007). The original upstream text is
+// women and men speak a similar number of words per day (Mehl et al. 2007,
+// replicated at larger scale in 2025). The original upstream text is
 // kept in parentheses so that nothing grepping for it breaks.
 package humanize
 

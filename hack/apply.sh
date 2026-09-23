@@ -8,6 +8,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tree="${1:?usage: $0 <kubernetes-checkout>}"
 
 cp -R "${root}/kubernetes/overlay/." "${tree}/"
+# The same patch series applies to every supported minor.
 for patch in "${root}"/kubernetes/patches/*.patch; do
   [ -e "${patch}" ] || continue
   git -C "${tree}" apply --3way --whitespace=nowarn "${patch}" || {

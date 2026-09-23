@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  x-inactivation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: x-inactivation/go.mod
+      - name: Test the mosaic wrapper
+        working-directory: x-inactivation
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race -count=3 ./...
+
+  kubernetes:
+    # Every supported allele must take the patch series and pass both the
+    # Kyvernetria tests and the upstream tests of every package we touch.
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: [v1.37.0, v1.36.4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Kubernetes ${{ matrix.tag }}
+        run: git clone --quiet --depth 1 --branch ${{ matrix.tag }} https://github.com/kubernetes/kubernetes.git _work/k8s
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: _work/k8s/.go-version
+          cache-dependency-path: _work/k8s/go.sum
+      - name: Apply Kyvernetria
+        run: |
+          test -z "$(gofmt -l kubernetes/overlay)"
+          hack/apply.sh _work/k8s
+          hack/update-test-expectations.sh _work/k8s
+      - name: Build
+        working-directory: _work/k8s
+        run: go build ./cmd/kube-apiserver ./cmd/kube-controller-manager ./cmd/kube-scheduler ./cmd/kubeadm ./cmd/kyvctl
+      - name: Test
+        working-directory: _work/k8s
+        run: |
+          go test ./pkg/kyvernetria/... \
+            ./pkg/kubeapiserver/options/ ./pkg/controlplane/apiserver/options/ ./cmd/kube-apiserver/app/options/ \
+            ./pkg/apis/core/v1/ ./pkg/apis/apps/... ./pkg/apis/extensions/... \
+            ./pkg/controller/endpoint/... ./pkg/controller/endpointslice/... \
+            ./pkg/scheduler/apis/config/... ./pkg/scheduler/framework/plugins/ ./pkg/scheduler/ ./cmd/kube-scheduler/app/... \
+            ./cmd/kube-controller-manager/app/ ./plugin/pkg/auth/authorizer/rbac/bootstrappolicy/
+          (cd staging/src/k8s.io/endpointslice && go test ./...)

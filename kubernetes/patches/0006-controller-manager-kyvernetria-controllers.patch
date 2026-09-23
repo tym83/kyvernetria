@@ -1,0 +1,14 @@
+diff --git a/cmd/kube-controller-manager/app/controller_descriptor.go b/cmd/kube-controller-manager/app/controller_descriptor.go
+index e8f717f1..549cff35 100644
+--- a/cmd/kube-controller-manager/app/controller_descriptor.go
++++ b/cmd/kube-controller-manager/app/controller_descriptor.go
+@@ -223,6 +223,9 @@ func NewControllerDescriptors() map[string]*ControllerDescriptor {
+ 	register(newServiceCIDRsControllerDescriptor())
+ 	register(newStorageVersionMigratorControllerDescriptor())
+ 	register(newSELinuxWarningControllerDescriptor())
++	register(newKyvernetriaPlaceMemoryControllerDescriptor())
++	register(newKyvernetriaRelationshipsControllerDescriptor())
++	register(newKyvernetriaWorryControllerDescriptor())
+ 
+ 	for _, alias := range aliases.UnsortedList() {
+ 		if _, ok := controllers[alias]; ok {

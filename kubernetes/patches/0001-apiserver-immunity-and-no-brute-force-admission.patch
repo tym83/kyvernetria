@@ -1,0 +1,41 @@
+diff --git a/pkg/kubeapiserver/options/plugins.go b/pkg/kubeapiserver/options/plugins.go
+index d69de6c4..9afba812 100644
+--- a/pkg/kubeapiserver/options/plugins.go
++++ b/pkg/kubeapiserver/options/plugins.go
+@@ -60,6 +60,9 @@ import (
+ 	"k8s.io/kubernetes/plugin/pkg/admission/storage/storageclass/setdefault"
+ 	"k8s.io/kubernetes/plugin/pkg/admission/storage/storageobjectinuseprotection"
+ 
++	"k8s.io/kubernetes/pkg/kyvernetria/admission/immunity"
++	"k8s.io/kubernetes/pkg/kyvernetria/admission/nobruteforce"
++
+ 	"k8s.io/apimachinery/pkg/util/sets"
+ 	"k8s.io/apiserver/pkg/admission"
+ 	"k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle"
+@@ -82,6 +85,8 @@ var AllOrderedPlugins = []string{
+ 	alwayspullimages.PluginName,             // AlwaysPullImages
+ 	imagepolicy.PluginName,                  // ImagePolicyWebhook
+ 	podsecurity.PluginName,                  // PodSecurity
++	immunity.PluginName,                     // Immunity (Kyvernetria)
++	nobruteforce.PluginName,                 // NoBruteForce (Kyvernetria)
+ 	podnodeselector.PluginName,              // PodNodeSelector
+ 	podpriority.PluginName,                  // Priority
+ 	defaulttolerationseconds.PluginName,     // DefaultTolerationSeconds
+@@ -145,6 +150,8 @@ func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
+ 	runtimeclass.Register(plugins)
+ 	resourcequota.Register(plugins)
+ 	podsecurity.Register(plugins)
++	immunity.Register(plugins)
++	nobruteforce.Register(plugins)
+ 	podpriority.Register(plugins)
+ 	serviceaccount.Register(plugins)
+ 	setdefault.Register(plugins)
+@@ -183,6 +190,8 @@ func DefaultOffAdmissionPlugins() sets.Set[string] {
+ 		certsubjectrestriction.PluginName,       // CertificateSubjectRestriction
+ 		defaultingressclass.PluginName,          // DefaultIngressClass
+ 		podsecurity.PluginName,                  // PodSecurity
++		immunity.PluginName,                     // Immunity (Kyvernetria)
++		nobruteforce.PluginName,                 // NoBruteForce (Kyvernetria)
+ 		podtopologylabels.PluginName,            // PodTopologyLabels, only active when feature gate PodTopologyLabelsAdmission is enabled.
+ 		mutatingadmissionpolicy.PluginName,      // Mutatingadmissionpolicy, only active when feature gate MutatingAdmissionpolicy is enabled
+ 		validatingadmissionpolicy.PluginName,    // ValidatingAdmissionPolicy, only active when feature gate ValidatingAdmissionPolicy is enabled

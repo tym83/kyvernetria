@@ -42,8 +42,8 @@ func newExcludeCommand(f cmdutil.Factory, streams genericiooptions.IOStreams, ex
 		Short: short,
 		Long: "Kyvernetria doesn't use force (lower physical aggression), but it can leave a\n" +
 			"misbehaving pod out: an excluded pod keeps running, is still Ready, and is\n" +
-			"simply no longer in any Service's endpoints (indirect aggression, which is\n" +
-			"about as common among women as among men).",
+			"simply no longer in any Service's endpoints (indirect aggression, where the\n" +
+			"sex difference is small or absent).",
 		Example: "  kyvctl exclude pod/api-7f9c-x2kq\n  kyvctl include pod/api-7f9c-x2kq",
 		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {

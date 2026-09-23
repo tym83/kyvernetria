@@ -1,0 +1,36 @@
+diff --git a/staging/src/k8s.io/endpointslice/util/controller_utils.go b/staging/src/k8s.io/endpointslice/util/controller_utils.go
+index 69fe3e45..0f74466e 100644
+--- a/staging/src/k8s.io/endpointslice/util/controller_utils.go
++++ b/staging/src/k8s.io/endpointslice/util/controller_utils.go
+@@ -174,10 +174,19 @@ func deepHashObjectToString(objectToWrite interface{}) string {
+ 	return hex.EncodeToString(hasher.Sum(nil)[0:])
+ }
+ 
++// ExcludedAnnotation leaves a running pod out of every Service (Kyvernetria:
++// indirect rather than physical aggression). It is spelled out here because
++// staging repositories cannot import k8s.io/kubernetes.
++const ExcludedAnnotation = "kyvernetria.io/excluded"
++
+ // ShouldPodBeInEndpoints returns true if a specified pod should be in an
+ // Endpoints or EndpointSlice resource. Terminating pods are only included if
+ // includeTerminating is true.
+ func ShouldPodBeInEndpoints(pod *v1.Pod, includeTerminating bool) bool {
++	if pod.Annotations[ExcludedAnnotation] == "true" {
++		return false
++	}
++
+ 	// "Terminal" describes when a Pod is complete (in a succeeded or failed phase).
+ 	// This is distinct from the "Terminating" condition which represents when a Pod
+ 	// is being terminated (metadata.deletionTimestamp is non nil).
+@@ -214,6 +223,11 @@ func podEndpointsChanged(oldPod, newPod *v1.Pod) (bool, bool) {
+ 		labelsChanged = true
+ 	}
+ 
++	// Excluding or including a pod changes its endpoints (Kyvernetria).
++	if oldPod.Annotations[ExcludedAnnotation] != newPod.Annotations[ExcludedAnnotation] {
++		return true, labelsChanged
++	}
++
+ 	// If the pod's deletion timestamp is set, remove endpoint from ready address.
+ 	if newPod.DeletionTimestamp != oldPod.DeletionTimestamp {
+ 		return true, labelsChanged

@@ -88,14 +88,14 @@ func TestGraph(t *testing.T) {
 
 func TestHostPattern(t *testing.T) {
 	for s, want := range map[string]bool{
-		"http://api:8080":    true,
-		"api":                true,
-		"api.internal":       false,
-		"my-api":             false,
-		"user@api/path":      true,
-		"--target=api":       true,
-		"x,api,y":            true,
-		"apiserver":          false,
+		"http://api:8080": true,
+		"api":             true,
+		"api.internal":    false,
+		"my-api":          false,
+		"user@api/path":   true,
+		"--target=api":    true,
+		"x,api,y":         true,
+		"apiserver":       false,
 	} {
 		if got := hostPattern("api").MatchString(s); got != want {
 			t.Errorf("hostPattern(api).Match(%q) = %v, want %v", s, got, want)

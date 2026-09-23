@@ -42,8 +42,8 @@ func newDiagnoseCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *
 	c.AddCommand(&cobra.Command{
 		Use:   "autoimmune",
 		Short: "Find workloads the immunity plugin is attacking although they are probably your own",
-		Long: "A stronger immune response comes with more autoimmunity: most people with\n" +
-			"autoimmune conditions are women. Kyvernetria's Immunity admission plugin is\n" +
+		Long: "A stronger immune response comes with more autoimmunity: autoimmune disease\n" +
+			"is about twice as common in women. Kyvernetria's Immunity admission plugin is\n" +
 			"strict too, and sometimes rejects legitimate infrastructure. This lists every\n" +
 			"workload it is currently rejecting and flags the ones that look like self.",
 		Args: cobra.NoArgs,
@@ -56,10 +56,10 @@ func newDiagnoseCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *
 
 // Rejection is one workload the immune system is attacking.
 type Rejection struct {
-	Namespace string
-	Object    string
-	Antigens  string
-	Count     int32
+	Namespace  string
+	Object     string
+	Antigens   string
+	Count      int32
 	LikelySelf bool
 }
 

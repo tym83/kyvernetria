@@ -30,8 +30,8 @@ import (
 // explanations turn common kubectl errors into sentences. The original
 // message is always printed as well.
 var explanations = []struct {
-	re   *regexp.Regexp
-	say  func(m []string) string
+	re  *regexp.Regexp
+	say func(m []string) string
 }{
 	{regexp.MustCompile(`connection refused|dial tcp .*: connect: `), func([]string) string {
 		return "The cluster isn't answering yet. If it's still starting up, give it a moment; otherwise check that the kubeconfig points at the right place."

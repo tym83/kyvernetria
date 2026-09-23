@@ -1,0 +1,25 @@
+diff --git a/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/controller_policy.go b/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/controller_policy.go
+index 42889248..7b143489 100644
+--- a/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/controller_policy.go
++++ b/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/controller_policy.go
+@@ -603,6 +603,8 @@ func buildControllerRoles() ([]rbacv1.ClusterRole, []rbacv1.ClusterRoleBinding)
+ 		})
+ 	}
+ 
++	addKyvernetriaControllerRoles(&controllerRoles, &controllerRoleBindings)
++
+ 	return controllerRoles, controllerRoleBindings
+ }
+ 
+diff --git a/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go b/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go
+index 2021d820..ea89ca9e 100644
+--- a/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go
++++ b/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go
+@@ -660,6 +660,7 @@ func ClusterRoles() []rbacv1.ClusterRole {
+ 		rbacv1helpers.NewRule(Read...).Groups(storageGroup).Resources("csidrivers").RuleOrDie(),
+ 		rbacv1helpers.NewRule(Read...).Groups(storageGroup).Resources("csistoragecapacities").RuleOrDie(),
+ 	}
++	kubeSchedulerRules = append(kubeSchedulerRules, kyvernetriaSchedulerRules()...)
+ 	// Needed for dynamic resource allocation.
+ 	if utilfeature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
+ 		kubeSchedulerRules = append(kubeSchedulerRules,

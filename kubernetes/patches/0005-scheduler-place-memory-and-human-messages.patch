@@ -1,0 +1,58 @@
+diff --git a/pkg/scheduler/apis/config/v1/default_plugins.go b/pkg/scheduler/apis/config/v1/default_plugins.go
+index 57a78434..a7958959 100644
+--- a/pkg/scheduler/apis/config/v1/default_plugins.go
++++ b/pkg/scheduler/apis/config/v1/default_plugins.go
+@@ -50,6 +50,7 @@ func getDefaultPlugins() *v1.Plugins {
+ 				{Name: names.DefaultPreemption},
+ 				{Name: names.NodeResourcesBalancedAllocation, Weight: ptr.To[int32](1)},
+ 				{Name: names.ImageLocality, Weight: ptr.To[int32](1)},
++				{Name: names.PlaceMemory, Weight: ptr.To[int32](2)},
+ 				{Name: names.DefaultBinder},
+ 			},
+ 		},
+diff --git a/pkg/scheduler/framework/plugins/names/names.go b/pkg/scheduler/framework/plugins/names/names.go
+index c7cc390a..5ce51221 100644
+--- a/pkg/scheduler/framework/plugins/names/names.go
++++ b/pkg/scheduler/framework/plugins/names/names.go
+@@ -42,3 +42,6 @@ const (
+ 	TopologyPlacementGenerator      = "TopologyPlacementGenerator"
+ 	PodGroupPodsCount               = "PodGroupPodsCount"
+ )
++
++// PlaceMemory is the Kyvernetria object-location memory plugin.
++const PlaceMemory = "PlaceMemory"
+diff --git a/pkg/scheduler/framework/plugins/registry.go b/pkg/scheduler/framework/plugins/registry.go
+index 8de10778..a71802cf 100644
+--- a/pkg/scheduler/framework/plugins/registry.go
++++ b/pkg/scheduler/framework/plugins/registry.go
+@@ -43,6 +43,8 @@ import (
+ 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumerestrictions"
+ 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumezone"
+ 	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
++
++	"k8s.io/kubernetes/pkg/kyvernetria/scheduler/placememory"
+ )
+ 
+ // NewInTreeRegistry builds the registry with all the in-tree plugins.
+@@ -77,5 +79,8 @@ func NewInTreeRegistry() runtime.Registry {
+ 		podgrouppodscount.Name:               runtime.FactoryAdapter(fts, podgrouppodscount.New),
+ 	}
+ 
++	// Kyvernetria: object-location memory.
++	registry[placememory.Name] = placememory.New
++
+ 	return registry
+ }
+diff --git a/pkg/scheduler/schedule_one.go b/pkg/scheduler/schedule_one.go
+index 88d5480d..7c0967ab 100644
+--- a/pkg/scheduler/schedule_one.go
++++ b/pkg/scheduler/schedule_one.go
+@@ -1249,7 +1249,7 @@ func (sched *Scheduler) handleSchedulingFailure(ctx context.Context, podFwk fram
+ 		return
+ 	}
+ 
+-	msg := truncateMessage(errMsg)
++	msg := truncateMessage(kyvernetriaSchedulingMessage(pod, err, errMsg))
+ 	podFwk.EventRecorder().WithLogger(logger).Eventf(pod, nil, v1.EventTypeWarning, "FailedScheduling", "Scheduling", msg)
+ 	if err := updatePod(ctx, sched.client, podFwk.APICacher(), pod, &v1.PodCondition{
+ 		Type:               v1.PodScheduled,
