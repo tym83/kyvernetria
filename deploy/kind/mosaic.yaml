@@ -29,9 +29,31 @@ kubeadmConfigPatches:
           hostPath: /var/lib/kyvernetria
           mountPath: /var/lib/kyvernetria
           pathType: DirectoryOrCreate
+    # Demo clusters only: laptops' virtual disks are too slow for four etcd
+    # members that fsync every write. Never use this outside a throwaway cluster.
+    etcd:
+      local:
+        extraArgs:
+          - name: unsafe-no-fsync
+            value: "true"
     scheduler:
       extraVolumes:
         - name: kyvernetria
           hostPath: /var/lib/kyvernetria
           mountPath: /var/lib/kyvernetria
           pathType: DirectoryOrCreate
+  # Laptop VMs start four nodes, and unpack two builds of every control-plane
+  # component on each, all at once; give kubeadm more patience than default.
+  - |
+    kind: InitConfiguration
+    timeouts:
+      controlPlaneComponentHealthCheck: 10m0s
+      kubernetesAPICall: 5m0s
+      etcdAPICall: 5m0s
+  - |
+    kind: JoinConfiguration
+    timeouts:
+      controlPlaneComponentHealthCheck: 10m0s
+      kubernetesAPICall: 5m0s
+      etcdAPICall: 5m0s
+      discovery: 10m0s
