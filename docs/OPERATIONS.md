@@ -192,8 +192,8 @@ On control-plane nodes `--joined` also points kubelet at the local haproxy
 `/etc/kubernetes/kubelet.conf`, and this cannot be turned off
 (`ControlPlaneKubeletLocalMode` went GA, locked on, in 1.35). With that
 endpoint, an apiserver crash loop, which is exactly what precedes an escape,
-takes the node's kubelet off the cluster: the node goes NotReady after 40 s
-and its pods are evicted, although two apiservers are still serving (seen in
+takes the node's kubelet off the cluster: the node goes NotReady and its
+pods are evicted, although two apiservers are still serving (seen in
 testing). Through haproxy, the node stays Ready throughout.
 
 ## Events are kept for 30 days

@@ -435,8 +435,13 @@ func TestComfortIgnoresFlagValues(t *testing.T) {
 	if c := Comfort(3, args); !strings.Contains(c, "kyvctl remember deploy/nope") {
 		t.Errorf("comfort pointed at a flag value: %q", c)
 	}
-	args = []string{"--kubeconfig=/home/me/.kube/config", "get", "pods"}
-	if c := Comfort(3, args); strings.Contains(c, "remember") {
-		t.Errorf("comfort invented an object: %q", c)
+	for _, args := range [][]string{
+		{"--kubeconfig=/home/me/.kube/config", "get", "pods"},
+		{"-n", "kube-system", "exec", "etcd-cp-1", "--", "sh", "-c", "etcdctl --cacert=/etc/pki/ca.crt get /registry"},
+		{"apply", "-f", "./manifests/app.yaml"},
+	} {
+		if c := Comfort(3, args); strings.Contains(c, "remember") {
+			t.Errorf("comfort invented an object from %v: %q", args, c)
+		}
 	}
 }
