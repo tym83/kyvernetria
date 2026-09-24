@@ -8,20 +8,41 @@ on:
 permissions:
   contents: read
 
+# Actions are pinned by commit; the comment names the release.
 jobs:
   x-inactivation:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: x-inactivation/go.mod
+          cache: false
       - name: Test the mosaic wrapper
         working-directory: x-inactivation
         run: |
           test -z "$(gofmt -l .)"
           go vet ./...
           go test -race -count=3 ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Shell scripts
+        run: |
+          find hack deploy -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          shellcheck --version
+          find hack deploy -name '*.sh' -print0 | xargs -0 shellcheck -x
+      - name: Alert rules
+        env:
+          PROMETHEUS: quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+        run: |
+          # promtool reads plain rule files; the PrometheusRule wraps one in spec.
+          yq '.spec' deploy/addons/alerts.yaml > "${RUNNER_TEMP}/rules.yaml"
+          docker run --rm -v "${RUNNER_TEMP}:/rules:ro" --entrypoint promtool "${PROMETHEUS}" check rules /rules/rules.yaml
 
   kubernetes:
     # Every supported allele must take the patch series and pass both the
@@ -33,21 +54,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Fetch Kubernetes ${{ matrix.tag }}
         run: git clone --quiet --depth 1 --branch ${{ matrix.tag }} https://github.com/kubernetes/kubernetes.git _work/k8s
-      - uses: actions/setup-go@v5
+      # No build cache: a Kubernetes cache is several GB per minor, and
+      # restoring and saving it costs more than it saves.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: _work/k8s/.go-version
-          cache-dependency-path: _work/k8s/go.sum
+          cache: false
       - name: Apply Kyvernetria
         run: |
           test -z "$(gofmt -l kubernetes/overlay)"
           hack/apply.sh _work/k8s
+          hack/apply.sh _work/k8s   # a rerun must be a no-op
+          hack/apply.sh --verify _work/k8s
+          # Copies the committed RBAC expectations; never regenerates them.
           hack/update-test-expectations.sh _work/k8s
       - name: Build
         working-directory: _work/k8s
-        run: go build ./cmd/kube-apiserver ./cmd/kube-controller-manager ./cmd/kube-scheduler ./cmd/kubeadm ./cmd/kyvctl
+        run: |
+          go build -trimpath -tags selinux,notest,grpcnotrace \
+            ./cmd/kube-apiserver ./cmd/kube-controller-manager ./cmd/kube-scheduler \
+            ./cmd/kubeadm ./cmd/kyvctl ./cmd/kubelet ./cmd/kubectl ./cmd/kube-proxy
       - name: Test
         working-directory: _work/k8s
         run: |

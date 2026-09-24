@@ -17,8 +17,9 @@ limitations under the License.
 // Package relationships makes the links between services a first-class
 // object of the cluster.
 //
-// Models: the largest well-replicated sex difference in interests,
-// people-orientation versus things-orientation (Su, Rounds & Armstrong 2009).
+// Models: one of the largest psychological sex differences,
+// people- versus things-orientation in interests (d ≈ 0.93; Su, Rounds &
+// Armstrong 2009).
 // Upstream Kubernetes is built around things: pods are cattle. Kyvernetria
 // keeps the things, and adds the relationships between them to the API:
 // `kubectl get relationships`.
@@ -31,6 +32,7 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -115,9 +117,10 @@ func (c *Controller) Run(ctx context.Context) {
 
 func (c *Controller) ensureCRD(ctx context.Context) error {
 	crd := CRD()
-	existing, err := c.crds.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crd.Name, metav1.GetOptions{})
+	crds := c.crds.ApiextensionsV1().CustomResourceDefinitions()
+	existing, err := crds.Get(ctx, crd.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		_, err = c.crds.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, crd, metav1.CreateOptions{})
+		_, err = crds.Create(ctx, crd, metav1.CreateOptions{})
 		if err == nil {
 			return fmt.Errorf("relationship API created, waiting for it to be served")
 		}
@@ -126,12 +129,32 @@ func (c *Controller) ensureCRD(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if !specUpToDate(existing, crd) {
+		// An older release installed a different definition (for example
+		// with the "all" category): bring it in line.
+		updated := existing.DeepCopy()
+		updated.Spec = crd.Spec
+		updated.Spec.Conversion = existing.Spec.Conversion // defaulted by the server
+		if _, err := crds.Update(ctx, updated, metav1.UpdateOptions{}); err != nil {
+			return fmt.Errorf("updating the relationship API: %w", err)
+		}
+		return fmt.Errorf("relationship API updated, waiting for it to be served")
+	}
 	for _, cond := range existing.Status.Conditions {
 		if cond.Type == apiextensionsv1.Established && cond.Status == apiextensionsv1.ConditionTrue {
 			return nil
 		}
 	}
 	return fmt.Errorf("relationship API is not established yet")
+}
+
+// specUpToDate compares the parts of the definition the controller owns;
+// fields the server defaults are taken from the existing object.
+func specUpToDate(existing, want *apiextensionsv1.CustomResourceDefinition) bool {
+	w := want.Spec.DeepCopy()
+	w.Conversion = existing.Spec.Conversion
+	w.PreserveUnknownFields = existing.Spec.PreserveUnknownFields
+	return apiequality.Semantic.DeepEqual(&existing.Spec, w)
 }
 
 func (c *Controller) reconcile(ctx context.Context) error {
@@ -251,9 +274,10 @@ func CRD() *apiextensionsv1.CustomResourceDefinition {
 			Group: Group,
 			Scope: apiextensionsv1.NamespaceScoped,
 			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Plural: Resource, Singular: "relationship", Kind: Kind,
+				Plural: Resource, Singular: "relationship", Kind: Kind, ListKind: Kind + "List",
+				// No "all" category: kubectl delete all --all must not
+				// delete the relationships along with the workloads.
 				ShortNames: []string{"rel", "rels"},
-				Categories: []string{"all"},
 			},
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
 				Name: Version, Served: true, Storage: true,

@@ -6,7 +6,7 @@ described accurately. This document lists each claim we use, whether the
 literature supports it, the corrected wording and numbers, and where they come
 from.
 
-Last verified: 2026-09-23. All numbers below were checked against the cited
+Last verified: 2026-09-24. All numbers below were checked against the cited
 primary source (abstract or full text) or, where marked, against a reliable
 secondary summary of it. Nothing here is taken from memory.
 
@@ -211,8 +211,8 @@ innate or fixed.
 - **Verdict:** SUPPORTED WITH CORRECTION
 - **Corrected wording:** Chest pain or discomfort is the most common symptom
   of heart attack in **both** sexes. Women more often also report other
-  symptoms, such as shortness of breath, fatigue, weakness, nausea or
-  indigestion, and these can lead to delays in diagnosis (Mehta et al., 2016).
+  symptoms, such as shortness of breath, fatigue, nausea or indigestion, and
+  these can lead to delays in diagnosis (Mehta et al., 2016).
   The 2021 AHA/ACC chest-pain guideline advises against calling these symptoms
   "atypical". Do not say "women don't get chest pain"; say "women more often
   have accompanying non-chest-pain symptoms".
@@ -261,10 +261,13 @@ innate or fixed.
   (Ruigrok et al., 2014). Joel et al. (2015) showed that few individual brains
   are consistently "male-typical" or "female-typical" across regions, which
   they described as a mosaic. Multivariate classifiers using the same kind of
-  data still predict sex with about 93% accuracy (Chekroud et al., 2016;
-  Anderson et al., 2019, forensic sample of about 1,300 people). Much of this
-  signal is tied to head and brain size. Neither result means there are two
-  brain "types" that predict behaviour.
+  data still predict sex with about 93% accuracy (Chekroud et al., 2016, about
+  1,500 young adults). Anderson et al. (2019), with a forensic sample of about
+  1,300 people, reported 93–94% accuracy on held-out data and replicated it in
+  a non-forensic sample. Much of this signal is tied to head and brain size:
+  when Chekroud et al. regressed out total brain volume, accuracy fell to
+  about 70%. Neither result means there are two brain "types" that predict
+  behaviour.
 - **Sources:**
   - Ruigrok, A. N. V., et al. (2014). A meta-analysis of sex differences in human brain structure. *Neuroscience & Biobehavioral Reviews*, 39, 34–50. https://doi.org/10.1016/j.neubiorev.2013.12.004
   - Joel, D., et al. (2015). Sex beyond the genitalia: the human brain mosaic. *PNAS*, 112(50), 15468–15473. https://doi.org/10.1073/pnas.1509654112
@@ -320,7 +323,7 @@ innate or fixed.
   verbal material (g = 0.28), and men had an advantage on tasks that rely on
   spatial processing. Hirnstein et al. (2023) found d = 0.28 for verbal recall.
 - **Sources:**
-  - Asperholm, M., Högman, N., Rafi, J., & Herlitz, A. (2019). What did you do yesterday? A meta-analysis of sex differences in episodic memory. *Psychological Bulletin*. https://pubmed.ncbi.nlm.nih.gov/31180695/
+  - Asperholm, M., Högman, N., Rafi, J., & Herlitz, A. (2019). What did you do yesterday? A meta-analysis of sex differences in episodic memory. *Psychological Bulletin*, 145(8), 785–821. https://doi.org/10.1037/bul0000197
   - Hirnstein et al. (2023), see claim 14.
 
 ### 16. Object-location memory
@@ -507,13 +510,16 @@ innate or fixed.
   (d ≈ 0.07). The difference was not significant, and the authors concluded
   that the stereotype of female talkativeness is unfounded. A larger
   registered-report replication (2,197 participants aged 10–94, 22 samples in
-  four countries) again found no overall sex difference. It did find a gap in
-  ages 25–64: 21,845 words a day for women vs 18,570 for men. There was no
-  difference in adolescence, emerging adulthood or older age. Summary: "no
-  overall difference; possibly more talk by women in mid-adulthood".
+  four countries) found no conclusive overall difference: women spoke about
+  1,000 more words a day (d = 0.13), but the estimate was too uncertain to
+  show whether the difference matters in practice. The gap was larger in ages
+  25–64: 21,845 words a day for women vs 18,570 for men (d = 0.32). Differences
+  in adolescence, emerging adulthood and older age were small and
+  inconclusive. Summary: "no conclusive overall difference; possibly more talk
+  by women in mid-adulthood".
 - **Sources:**
   - Mehl, M. R., Vazire, S., Ramírez-Esparza, N., Slatcher, R. B., & Pennebaker, J. W. (2007). Are women really more talkative than men? *Science*, 317(5834), 82. https://doi.org/10.1126/science.1139940
-  - Tidwell, C., Pfeifer, V. A., Danvers, A., Mehl, M. R., et al. (2025). Are women really (not) more talkative than men? A registered report of binary gender similarities/differences in daily word use. *Journal of Personality and Social Psychology*. Summary: https://news.arizona.edu/news/do-women-talk-more-men-it-might-depend-their-age ; record: https://www.researchgate.net/publication/384083312 (the author order is taken from the university release and is not confirmed)
+  - Tidwell, C. A., Danvers, A. F., Pfeifer, V. A., … Mehl, M. R. (2025). Are women really (not) more talkative than men? A registered report of binary gender similarities/differences in daily word use. *Journal of Personality and Social Psychology*, 128(2), 367–391. https://doi.org/10.1037/pspp0000534 (the 25–64 word counts are from the University of Arizona release: https://news.arizona.edu/news/do-women-talk-more-men-it-might-depend-their-age)
 
 ### 29. Early language development
 
@@ -668,9 +674,9 @@ should consider removing the feature.
 | 8 | Sex differences in pharmacokinetics; FDA zolpidem dose change | Different default resource defaults | OK |
 | 10 | Women slightly better at smell, effect trivial to small (g 0.08–0.30) | Log anomaly sniffing | REVIEW. The basis is a trivial effect, so the joke works but the "advantage" framing should be modest. |
 | 15 | Small female advantage in episodic memory (g ≈ 0.19) | 30-day event retention | OK |
-| 16 | Task-dependent female advantage in object-location memory | Scheduler remembers pod placement | OK |
-| 17 | Small female advantage in emotion recognition (d ≈ 0.19) | CLI notices user frustration | OK |
-| 21 | People-vs-things interest, d ≈ 0.93 | Relationships between services as first-class objects | OK |
+| 16 | Small-to-moderate, task-dependent female advantage in object-location memory (male advantage on some tasks) | Scheduler remembers pod placement | OK. Describe as task-dependent. |
+| 17 | Small female advantage in emotion recognition (d ≈ 0.19) | CLI notices repeated failures | OK. The effect is small; the feature is a light touch. |
+| 21 | People-vs-things interest, one of the largest psychological sex differences (d ≈ 0.93, ~64% overlap) | Relationships between services as first-class objects | OK |
 | 22 | Higher average agreeableness (d ≈ 0.48) | Negotiated eviction, long grace periods | OK |
 | 22 | Higher average neuroticism (d ≈ 0.39) | Earlier warnings plus a "calm" summariser | OK. Frame as vigilance; see "not modelled" below. |
 | 24 | Less physical aggression (moderate to large) | No force-delete | OK |
@@ -678,7 +684,7 @@ should consider removing the feature.
 | 27 | Camouflaging contributes to under-diagnosis of autistic girls | Deeper health checks | OK. The evidence is still developing (narrative review). |
 | 28 | Women and men speak a similar number of words per day | Same log volume as upstream, not chattier | OK |
 | 31 | Women lead most changes from below and use fewer stigmatised stable variants | Early alpha API adoption plus strict label conventions | OK |
-| 32 | More pronouns and social words, small effect | Human-readable error messages | OK |
+| 32 | More pronouns and social words, small effect | Human-readable error messages | OK. Based on word use only; verbal fluency (claim 14) is not a basis. |
 | 29 | Girls slightly ahead in early language, small effect | Fast first output during bootstrap | OK |
 
 No current mapping relies on claims 3 (tetrachromacy), 13 (male variability),
@@ -691,9 +697,10 @@ No current mapping relies on claims 3 (tetrachromacy), 13 (male variability),
 - **Menstrual-cycle mood swings ("PMS mode", cyclical instability).** Popular
   stereotypes greatly overstate cycle effects on mood and cognition for most
   women, and a "cyclical failure mode" would be both inaccurate and demeaning.
-- **"Women talk more" (chattier logs, verbose output).** There is no overall
-  difference (Mehl et al., 2007; 2025 replication, claim 28). The only gap
-  appears in one age band and does not support a general stereotype.
+- **"Women talk more" (chattier logs, verbose output).** There is no
+  conclusive overall difference (Mehl et al., 2007; 2025 replication, claim
+  28). The larger gap appears in one age band and does not support a general
+  stereotype.
 - **Rapport vs report talk, male–female miscommunication.** Not supported
   empirically (claim 33).
 - **Hedging, uncertainty or "less confident" defaults.** The tentative-language
@@ -706,8 +713,8 @@ No current mapping relies on claims 3 (tetrachromacy), 13 (male variability),
 - **Gender-equality paradox.** Methodologically disputed (claim 23).
 - **Ultra-endurance superiority.** Not supported by performance data
   (claim 7).
-- **Tetrachromacy as a general female trait.** Only one carrier has shown
-  strong tetrachromacy in a controlled test (claim 3).
+- **Tetrachromacy as a general female trait.** Only a very small number of
+  carriers have shown evidence of tetrachromacy (claim 3).
 - **"Hysteria", emotional instability or irrationality.** These are
   stereotypes, not findings. The neuroticism difference is moderate
   (d ≈ 0.39) with large overlap and does not imply irrationality.

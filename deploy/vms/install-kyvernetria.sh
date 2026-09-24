@@ -2,6 +2,7 @@
 # Installs Kyvernetria binaries and images on a node prepared by
 # prepare-node.sh. Expects the release in the current directory:
 #   bin/{kubelet,kubeadm,kubectl,kyvctl}   images/*.tar
+# Safe to run again.
 set -euo pipefail
 
 install -m 0755 bin/kubelet bin/kubeadm bin/kubectl bin/kyvctl /usr/local/bin/
@@ -35,9 +36,15 @@ EOF
 systemctl daemon-reload
 systemctl enable kubelet >/dev/null
 
+# The images are imported, not pulled, and exist nowhere else. Pin them so
+# kubelet's image garbage collection never removes them.
 for image in images/*.tar; do
   [ -e "${image}" ] || continue
   ctr --namespace k8s.io images import --local "${image}" >/dev/null
+  tar -xOf "${image}" manifest.json | grep -oE '"RepoTags":\["[^"]+"' | cut -d'"' -f4 |
+    while read -r ref; do
+      ctr --namespace k8s.io images label "${ref}" io.cri-containerd.pinned=pinned >/dev/null
+      echo "imported and pinned ${ref}"
+    done
 done
 echo "installed: $(kubelet --version), kubeadm $(kubeadm version -o short)"
-crictl images | grep kyvernetria || true

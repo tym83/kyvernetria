@@ -1,5 +1,5 @@
 # A Kyvernetria cluster in kind: three control-plane nodes, each silencing
-# one of the two control-plane alleles at first boot, plus one worker.
+# one of the two kube-apiserver alleles at first boot, plus one worker.
 #
 #   hack/build.sh all
 #   kind create cluster --config deploy/kind/mosaic.yaml --image kyvernetria/node:v1.37.0-kyvernetria.0
@@ -13,17 +13,20 @@ nodes:
   - role: control-plane
   - role: worker
 kubeadmConfigPatches:
-  # x-inactivation keeps each node's allele choice in /var/lib/kyvernetria;
-  # all three components on a node share it, like one X chromosome.
+  # x-inactivation keeps the node's kube-apiserver allele in
+  # /var/lib/kyvernetria. The controller manager and scheduler always run Xp
+  # and need no state. peer-ca-file turns on the mixed-version peer proxy
+  # (see deploy/vms/kubeadm.yaml and docs/OPERATIONS.md).
+  #
+  # The images inside the kind node image keep registry.k8s.io names: kind
+  # resolves the images a node needs with kubeadm's default repository.
+  # They are Kyvernetria builds all the same (hack/build.sh images).
   - |
     kind: ClusterConfiguration
     apiServer:
-      extraVolumes:
-        - name: kyvernetria
-          hostPath: /var/lib/kyvernetria
-          mountPath: /var/lib/kyvernetria
-          pathType: DirectoryOrCreate
-    controllerManager:
+      extraArgs:
+        - name: peer-ca-file
+          value: /etc/kubernetes/pki/ca.crt
       extraVolumes:
         - name: kyvernetria
           hostPath: /var/lib/kyvernetria
@@ -36,12 +39,6 @@ kubeadmConfigPatches:
         extraArgs:
           - name: unsafe-no-fsync
             value: "true"
-    scheduler:
-      extraVolumes:
-        - name: kyvernetria
-          hostPath: /var/lib/kyvernetria
-          mountPath: /var/lib/kyvernetria
-          pathType: DirectoryOrCreate
   # Laptop VMs start four nodes, and unpack two builds of every control-plane
   # component on each, all at once; give kubeadm more patience than default.
   - |

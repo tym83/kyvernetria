@@ -55,6 +55,9 @@ func newCalmCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *cobr
 }
 
 func runCalm(ctx context.Context, f cmdutil.Factory, out io.Writer, all bool, since time.Duration, top int) error {
+	if top < 1 {
+		return fmt.Errorf("--top must be at least 1, got %d", top)
+	}
 	ns, _, err := f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return err

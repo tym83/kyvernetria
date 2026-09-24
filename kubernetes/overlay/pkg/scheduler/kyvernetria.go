@@ -22,6 +22,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
+	"k8s.io/kubernetes/pkg/apis/core/validation"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"k8s.io/kubernetes/pkg/kyvernetria/humanize"
@@ -29,7 +30,8 @@ import (
 
 // kyvernetriaSchedulingMessage renders the FailedScheduling event for a
 // person. Only the event text changes; the pod condition keeps the
-// upstream message.
+// upstream message. The result fits the event note limit with the upstream
+// text intact, so truncateMessage leaves it alone.
 func kyvernetriaSchedulingMessage(pod *v1.Pod, err error, upstream string) string {
 	var fitErr *framework.FitError
 	if !errors.As(err, &fitErr) {
@@ -52,5 +54,5 @@ func kyvernetriaSchedulingMessage(pod *v1.Pod, err error, upstream string) strin
 			}
 		}
 	}
-	return humanize.SchedulingFailure(klog.KObj(pod).String(), fitErr.NumAllNodes, reasons, upstream)
+	return humanize.SchedulingFailure(klog.KObj(pod).String(), fitErr.NumAllNodes, reasons, upstream, validation.NoteLengthLimit)
 }

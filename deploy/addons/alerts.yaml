@@ -1,16 +1,24 @@
 # Alerts for the Prometheus Operator.
 #
 # Models: in heart attacks, chest pain is the most common symptom for both
-# sexes, but women more often have accompanying symptoms (nausea, fatigue,
-# back or jaw pain) that get missed (Mehta et al. 2016, AHA). So Kyvernetria
+# sexes, but women more often have accompanying symptoms (shortness of
+# breath, fatigue, nausea, indigestion) that get missed (Mehta et al. 2016,
+# AHA). So Kyvernetria
 # keeps the classic "chest pain" alert (CPU saturation) and adds the
 # accompanying symptoms of a control plane in trouble: latency creeping up,
 # DNS jitter, slow storage.
+#
+# The Prometheus Operator only loads rules its Prometheus selects. With
+# kube-prometheus-stack that is `release: <helm release name>` by default:
+# set the label below to your release name, or install the chart with
+# prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: kyvernetria-symptoms
   namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
 spec:
   groups:
     - name: kyvernetria.classic
@@ -32,9 +40,15 @@ spec:
           annotations:
             summary: "API p99 latency is twice what it was this time yesterday, even if CPU looks fine."
         - alert: DNSJitter
+          # A 5m rate so single slow queries do not dominate, and only while
+          # there is traffic: on an idle cluster the quantile is NaN.
           expr: |
-            stddev_over_time((histogram_quantile(0.99, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket[1m]))))[15m:1m])
-              > 0.05
+            stddev_over_time(
+              (
+                histogram_quantile(0.99, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket[5m])))
+                  and on () sum(rate(coredns_dns_request_duration_seconds_count[5m])) > 0
+              )[15m:1m]
+            ) > 0.05
           for: 10m
           labels: {severity: warning}
           annotations:

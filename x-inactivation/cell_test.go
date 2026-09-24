@@ -18,26 +18,62 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
 
-func newCell(t *testing.T, pick string) *Cell {
+// clock is a settable fake clock.
+type clock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *clock) Add(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+func newCell(t *testing.T, pick string) (*Cell, *clock) {
 	t.Helper()
-	now := time.Unix(1_800_000_000, 0)
+	clk := &clock{now: time.Unix(1_800_000_000, 0)}
 	return &Cell{
-		Dir: t.TempDir(), EscapeStarts: 3, EscapeWindow: time.Minute,
-		Now:    func() time.Time { return now },
+		Dir: t.TempDir(), EscapeCrashes: 5, EscapeWindow: 10 * time.Minute, Cooldown: 24 * time.Hour,
+		Now:    clk.Now,
 		Random: func() (string, error) { return pick, nil },
+		BootID: func() string { return "boot-1" },
+	}, clk
+}
+
+func mustExpress(t *testing.T, c *Cell, want string) {
+	t.Helper()
+	a, _, err := c.Expressed()
+	if err != nil || a != want {
+		t.Fatalf("node expresses %q (%v), want %s", a, err, want)
 	}
 }
 
+func crash(t *testing.T, c *Cell, allele string) Decision {
+	t.Helper()
+	d, err := c.RecordCrash(Mosaic, allele)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
 func TestInactivationIsClonal(t *testing.T) {
-	c := newCell(t, Xp)
+	c, _ := newCell(t, Xp)
 	a, first, err := c.Expressed()
 	if err != nil || a != Xp || !first {
 		t.Fatalf("first boot: %s %v %v", a, first, err)
@@ -49,6 +85,10 @@ func TestInactivationIsClonal(t *testing.T) {
 	a, first, err = c.Expressed()
 	if err != nil || a != Xp || first {
 		t.Fatalf("the choice was not inherited: %s %v %v", a, first, err)
+	}
+	leftovers, _ := filepath.Glob(filepath.Join(c.Dir, ".tmp-*"))
+	if len(leftovers) != 0 {
+		t.Errorf("temporary files left behind: %v", leftovers)
 	}
 }
 
@@ -94,78 +134,189 @@ func TestRandomAlleleProducesBoth(t *testing.T) {
 	}
 }
 
+// (a) Only a node without state chooses; anything else fails loudly.
+func TestBrokenStateIsAnErrorNotXm(t *testing.T) {
+	for name, setup := range map[string]func(path string) error{
+		"zero-length": func(p string) error { return os.WriteFile(p, nil, 0o644) },
+		"garbage":     func(p string) error { return os.WriteFile(p, []byte("Xq\n"), 0o644) },
+		"unreadable":  func(p string) error { return os.Mkdir(p, 0o755) }, // read(2) on a directory fails
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _ := newCell(t, Xm)
+			if err := setup(c.choicePath()); err != nil {
+				t.Fatal(err)
+			}
+			a, first, err := c.Expressed()
+			if err == nil || a != "" || first {
+				t.Fatalf("broken state gave %q first=%v err=%v, want an error", a, first, err)
+			}
+		})
+	}
+}
+
 func TestEscapeAfterCrashLoop(t *testing.T) {
-	c := newCell(t, Xm)
-	now := time.Unix(1_800_000_000, 0)
-	c.Now = func() time.Time { return now }
-	if _, _, err := c.Expressed(); err != nil {
+	c, clk := newCell(t, Xm)
+	mustExpress(t, c, Xm)
+	// A history left by an older release is cleared by the escape too.
+	if err := os.WriteFile(filepath.Join(c.Dir, "kube-scheduler.starts"), []byte("1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for i := 1; i <= 2; i++ {
-		if looping, _ := c.RecordStart("kube-apiserver"); looping {
-			t.Fatalf("start %d counted as a crash loop", i)
+	for i := 1; i <= 4; i++ {
+		if d := crash(t, c, Xm); d.Escaped || d.Crashes != i {
+			t.Fatalf("crash %d: %+v", i, d)
 		}
-		now = now.Add(10 * time.Second)
+		clk.Add(time.Minute)
 	}
-	looping, err := c.RecordStart("kube-apiserver")
-	if err != nil || !looping {
-		t.Fatalf("third start in a minute not a crash loop: %v %v", looping, err)
+	d := crash(t, c, Xm)
+	if !d.Escaped || d.To != Xp {
+		t.Fatalf("fifth crash in ten minutes did not escape: %+v", d)
 	}
-	to, err := c.Escape(Xm)
-	if err != nil || to != Xp {
-		t.Fatalf("escape: %s %v", to, err)
-	}
-	if a, _, _ := c.Expressed(); a != Xp {
-		t.Fatalf("node still expresses %s after escape", a)
-	}
-	if b, _ := os.ReadFile(filepath.Join(c.Dir, "escapes")); !strings.Contains(string(b), "escaped Xm -> Xp") {
+	mustExpress(t, c, Xp)
+	if b, _ := os.ReadFile(filepath.Join(c.Dir, "escapes")); !strings.Contains(string(b), "kube-apiserver escaped Xm -> Xp") {
 		t.Errorf("escape not logged: %q", b)
 	}
-	if looping, _ := c.RecordStart("kube-apiserver"); looping {
-		t.Error("history was not reset after the escape")
+	for _, pattern := range []string{"*.crashes", "*.starts"} {
+		if m, _ := filepath.Glob(filepath.Join(c.Dir, pattern)); len(m) != 0 {
+			t.Errorf("histories not cleared after the escape: %v", m)
+		}
+	}
+	if b, _ := os.ReadFile(c.lastEscapePath()); string(b) != "1800000240 boot-1\n" {
+		t.Errorf("last escape recorded as %q", b)
 	}
 }
 
-func TestSlowRestartsAreNotACrashLoop(t *testing.T) {
-	c := newCell(t, Xm)
-	now := time.Unix(1_800_000_000, 0)
-	c.Now = func() time.Time { return now }
+func TestSlowCrashesAreNotACrashLoop(t *testing.T) {
+	c, clk := newCell(t, Xm)
+	mustExpress(t, c, Xm)
+	for i := 0; i < 20; i++ {
+		if d := crash(t, c, Xm); d.Escaped {
+			t.Fatalf("crash %d, three minutes apart, escaped: %+v", i, d)
+		}
+		clk.Add(3 * time.Minute)
+	}
+}
+
+// (d) A clock stepped back must not make old crashes count forever.
+func TestFutureHistoryIsIgnored(t *testing.T) {
+	c, clk := newCell(t, Xm)
+	mustExpress(t, c, Xm)
+	future := clk.Now().Add(time.Hour).Unix()
+	var lines []string
 	for i := 0; i < 10; i++ {
-		if looping, _ := c.RecordStart("kube-scheduler"); looping {
-			t.Fatalf("restart %d, 40s apart, counted as a crash loop", i)
-		}
-		now = now.Add(40 * time.Second)
+		lines = append(lines, strconv.FormatInt(future+int64(i), 10))
 	}
-}
-
-// TestWrapperExecsExpressedAllele builds the wrapper, installs it under a
-// component name next to two fake alleles, and checks which one runs.
-func TestWrapperExecsExpressedAllele(t *testing.T) {
-	bin := t.TempDir()
-	wrapper := filepath.Join(bin, "kube-apiserver")
-	if out, err := exec.Command("go", "build", "-o", wrapper, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build: %v\n%s", err, out)
-	}
-	for _, a := range []string{Xm, Xp} {
-		script := "#!/bin/sh\necho allele " + a + " args \"$@\"\n"
-		if err := os.WriteFile(filepath.Join(bin, "kube-apiserver."+a), []byte(script), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	state := t.TempDir()
-	if err := os.WriteFile(filepath.Join(state, "x-inactivation"), []byte("Xp\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(c.Dir, Mosaic+".crashes"), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Started by bare name through PATH, the way kubeadm static pods do it.
-	cmd := exec.Command("kube-apiserver", "--secure-port=6443")
-	cmd.Path, cmd.Err = wrapper, nil
-	cmd.Dir = t.TempDir()
-	cmd.Env = append(os.Environ(), "KYVERNETRIA_STATE_DIR="+state, "PATH="+bin+":"+os.Getenv("PATH"))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
+	if d := crash(t, c, Xm); d.Escaped || d.Crashes != 1 {
+		t.Fatalf("crashes from the future were counted: %+v", d)
 	}
-	if !strings.Contains(string(out), "allele Xp args --secure-port=6443") {
-		t.Errorf("wrong allele or args:\n%s", out)
+	// Nor does an escape "in the future" start a cooldown that never ends,
+	// but the one-escape-per-boot rule still applies.
+	if err := os.WriteFile(c.lastEscapePath(), []byte(strconv.FormatInt(future, 10)+" boot-0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if reason := c.escapeBlocked(clk.Now()); reason != "" {
+		t.Errorf("an escape stamped in the future blocks escapes: %s", reason)
+	}
+}
+
+// (c) Concurrent crash reports are serialised: one escape, no lost crashes.
+func TestConcurrentCrashesEscapeOnce(t *testing.T) {
+	c, _ := newCell(t, Xm)
+	mustExpress(t, c, Xm)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	escapes := 0
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			d, err := c.RecordCrash(Mosaic, Xm)
+			if err != nil {
+				t.Error(err)
+			}
+			if d.Escaped {
+				mu.Lock()
+				escapes++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	if escapes != 1 {
+		t.Fatalf("%d escapes from five concurrent crashes, want 1", escapes)
+	}
+	mustExpress(t, c, Xp)
+}
+
+func TestCooldownAndOneEscapePerBoot(t *testing.T) {
+	c, clk := newCell(t, Xm)
+	mustExpress(t, c, Xm)
+	loop := func(allele string) Decision {
+		var d Decision
+		for i := 0; i < 5; i++ {
+			d = crash(t, c, allele)
+			clk.Add(10 * time.Second)
+			if d.Escaped {
+				break
+			}
+		}
+		return d
+	}
+	if d := loop(Xm); !d.Escaped {
+		t.Fatalf("first crash loop did not escape: %+v", d)
+	}
+	if d := loop(Xp); d.Escaped || !strings.Contains(d.Reason, "since it booted") {
+		t.Fatalf("second escape in the same boot: %+v", d)
+	}
+	clk.Add(25 * time.Hour)
+	if d := loop(Xp); d.Escaped {
+		t.Fatalf("escaped twice in one boot, a day apart: %+v", d)
+	}
+	c.BootID = func() string { return "boot-2" }
+	clk.Add(-24 * time.Hour) // one hour after the escape, on a new boot
+	if d := loop(Xp); d.Escaped || !strings.Contains(d.Reason, "cooling down") {
+		t.Fatalf("escaped during the cooldown: %+v", d)
+	}
+	clk.Add(24 * time.Hour)
+	if d := loop(Xp); !d.Escaped || d.To != Xm {
+		t.Fatalf("no escape after the cooldown on a new boot: %+v", d)
+	}
+}
+
+func TestUpgradingFlagBlocksEscapes(t *testing.T) {
+	c, _ := newCell(t, Xm)
+	mustExpress(t, c, Xm)
+	if err := os.WriteFile(filepath.Join(c.Dir, UpgradingFlag), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var d Decision
+	for i := 0; i < 10; i++ {
+		d = crash(t, c, Xm)
+	}
+	if d.Escaped || !strings.Contains(d.Reason, UpgradingFlag) {
+		t.Fatalf("escaped during an upgrade: %+v", d)
+	}
+	mustExpress(t, c, Xm)
+}
+
+// (b) Atomic writes replace the file whole and leave nothing behind.
+func TestWriteAtomic(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f")
+	for _, s := range []string{"one\n", "two\n"} {
+		if err := writeAtomic(path, []byte(s)); err != nil {
+			t.Fatal(err)
+		}
+		if b, _ := os.ReadFile(path); string(b) != s {
+			t.Fatalf("got %q, want %q", b, s)
+		}
+	}
+	if info, _ := os.Stat(path); info.Mode().Perm() != 0o644 {
+		t.Errorf("mode %v", info.Mode())
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("temporary files left behind: %v", entries)
 	}
 }

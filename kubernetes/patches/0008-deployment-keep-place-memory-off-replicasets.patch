@@ -1,0 +1,13 @@
+diff --git a/pkg/controller/deployment/util/deployment_util.go b/pkg/controller/deployment/util/deployment_util.go
+index ee58d67f..f2045f99 100644
+--- a/pkg/controller/deployment/util/deployment_util.go
++++ b/pkg/controller/deployment/util/deployment_util.go
+@@ -299,6 +299,8 @@ var annotationsToSkip = map[string]bool{
+ 	DesiredReplicasAnnotation:      true,
+ 	MaxReplicasAnnotation:          true,
+ 	apps.DeprecatedRollbackTo:      true,
++	// Kyvernetria: the Deployment's place memory stays on the Deployment.
++	"kyvernetria.io/remembered-nodes": true,
+ }
+ 
+ // skipCopyAnnotation returns true if we should skip copying the annotation with the given annotation key
