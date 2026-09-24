@@ -18,6 +18,7 @@ package kyvctl
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -289,5 +290,13 @@ func TestOwnCommandKeepsItsArguments(t *testing.T) {
 	}
 	if len(rest) == 0 {
 		t.Error("arguments were dropped")
+	}
+}
+
+func TestCalmRejectsNonPositiveTop(t *testing.T) {
+	for _, top := range []int{0, -1} {
+		if err := runCalm(context.Background(), nil, io.Discard, false, time.Hour, top); err == nil || !strings.Contains(err.Error(), "--top") {
+			t.Errorf("--top=%d: err = %v", top, err)
+		}
 	}
 }
