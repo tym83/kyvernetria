@@ -213,8 +213,10 @@ func Comfort(count int, args []string) string {
 		return ""
 	}
 	hint := "`kyvctl calm` summarizes what's going wrong around you"
-	for _, a := range args {
-		if strings.Contains(a, "/") && !strings.HasPrefix(a, "-") {
+	// Only positional arguments name objects; a flag value such as
+	// --kubeconfig /path/to/file must never be mistaken for one.
+	for _, a := range positionals(args, globalFlags()) {
+		if strings.Contains(a, "/") {
 			hint = fmt.Sprintf("`kyvctl remember %s` shows what has been happening to it", a)
 			break
 		}

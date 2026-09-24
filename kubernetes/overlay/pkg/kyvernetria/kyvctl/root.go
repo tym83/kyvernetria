@@ -69,14 +69,21 @@ func globalFlags() *pflag.FlagSet {
 // flag's value: --flag value, --flag=value, -n value, -nvalue and boolean
 // flags are all skipped.
 func firstPositional(args []string, flags *pflag.FlagSet) string {
+	if p := positionals(args, flags); len(p) > 0 {
+		return p[0]
+	}
+	return ""
+}
+
+// positionals returns every argument that is neither a flag nor a flag's
+// value, in order; everything after "--" is positional.
+func positionals(args []string, flags *pflag.FlagSet) []string {
+	var out []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--":
-			if i+1 < len(args) {
-				return args[i+1]
-			}
-			return ""
+			return append(out, args[i+1:]...)
 		case strings.HasPrefix(a, "--"):
 			name := strings.ReplaceAll(a[2:], "_", "-")
 			if strings.Contains(name, "=") {
@@ -99,10 +106,10 @@ func firstPositional(args []string, flags *pflag.FlagSet) string {
 				break
 			}
 		default:
-			return a
+			out = append(out, a)
 		}
 	}
-	return ""
+	return out
 }
 
 // NewCommand builds the kyvctl root command.
