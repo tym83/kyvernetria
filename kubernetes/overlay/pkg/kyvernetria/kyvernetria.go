@@ -41,6 +41,11 @@ const (
 	// recent first (object-location memory).
 	RememberedNodesAnnotation = Prefix + "remembered-nodes"
 
+	// WorriedAnnotation lists the resources the worry controller is
+	// currently worried about on a node ("cpu,memory"), so a new leader
+	// knows what was already said.
+	WorriedAnnotation = Prefix + "worried"
+
 	// MaxRememberedNodes bounds the remembered-nodes list.
 	MaxRememberedNodes = 16
 
