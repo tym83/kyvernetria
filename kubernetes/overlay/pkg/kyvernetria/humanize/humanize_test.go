@@ -16,7 +16,11 @@ limitations under the License.
 
 package humanize
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
 
 func TestSchedulingFailure(t *testing.T) {
 	for _, tc := range []struct {
@@ -29,30 +33,53 @@ func TestSchedulingFailure(t *testing.T) {
 			name:    "all nodes short on cpu",
 			total:   3,
 			reasons: map[string]int{"Insufficient cpu": 3},
-			want:    "We couldn't place default/api yet: every node is short on CPU. I'll try again as soon as something changes. (upstream)",
+			want:    "We couldn't place default/api yet: every node is short on CPU. We'll try again as soon as something changes. (upstream)",
 		},
 		{
 			name:    "mixed",
 			total:   3,
 			reasons: map[string]int{"Insufficient memory": 2, "node(s) had untolerated taint {node-role.kubernetes.io/control-plane: }": 1},
-			want:    "We couldn't place default/api yet: 2 nodes are short on memory, 1 node has a taint the pod doesn't tolerate. I'll try again as soon as something changes. (upstream)",
+			want:    "We couldn't place default/api yet: 2 nodes are short on memory, 1 node has a taint the pod doesn't tolerate. We'll try again as soon as something changes. (upstream)",
 		},
 		{
 			name:    "unknown reason is passed through",
 			total:   2,
 			reasons: map[string]int{"something new": 2},
-			want:    "We couldn't place default/api yet: 2 nodes: something new. I'll try again as soon as something changes. (upstream)",
+			want:    "We couldn't place default/api yet: 2 nodes: something new. We'll try again as soon as something changes. (upstream)",
 		},
 		{
 			name:  "no nodes",
 			total: 0,
-			want:  "We couldn't place default/api yet: the cluster has no nodes I can use. (upstream)",
+			want:  "We couldn't place default/api yet: the cluster has no nodes we can use. (upstream)",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := SchedulingFailure("default/api", tc.total, tc.reasons, "upstream"); got != tc.want {
+			if got := SchedulingFailure("default/api", tc.total, tc.reasons, "upstream", 1024); got != tc.want {
 				t.Errorf("got  %q\nwant %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSchedulingFailureKeepsUpstreamWhole(t *testing.T) {
+	reasons := map[string]int{}
+	for i := 0; i < 60; i++ {
+		reasons[fmt.Sprintf("node(s) didn't satisfy plugin(s) [Custom%02d]", i)] = 1
+	}
+	upstream := "0/60 nodes are available: " + strings.Repeat("1 node(s) didn't satisfy plugin(s) [CustomXX], ", 12) + "preemption: not eligible."
+	got := SchedulingFailure("default/api", 60, reasons, upstream, 1024)
+	if len(got) > 1024 {
+		t.Errorf("message is %d bytes, limit 1024", len(got))
+	}
+	if !strings.HasSuffix(got, " ("+upstream+")") {
+		t.Errorf("upstream text was cut:\n%s", got)
+	}
+	if !strings.HasPrefix(got, "We couldn't place default/api yet: ") || !strings.Contains(got, "...") {
+		t.Errorf("human part not shortened visibly:\n%s", got)
+	}
+
+	huge := strings.Repeat("x", 2000)
+	if got := SchedulingFailure("default/api", 1, map[string]int{"Insufficient cpu": 1}, huge, 1024); got != huge {
+		t.Error("an upstream text longer than the limit was not passed through alone")
 	}
 }
