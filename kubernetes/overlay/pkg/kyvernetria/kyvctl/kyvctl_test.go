@@ -380,3 +380,14 @@ func TestCollectStory(t *testing.T) {
 		t.Errorf("got %d events, want 4: %v", len(s.events), got)
 	}
 }
+
+func TestComfortIgnoresFlagValues(t *testing.T) {
+	args := []string{"--kubeconfig", "/home/me/.kube/config", "-n", "shop", "get", "deploy/nope"}
+	if c := Comfort(3, args); !strings.Contains(c, "kyvctl remember deploy/nope") {
+		t.Errorf("comfort pointed at a flag value: %q", c)
+	}
+	args = []string{"--kubeconfig=/home/me/.kube/config", "get", "pods"}
+	if c := Comfort(3, args); strings.Contains(c, "remember") {
+		t.Errorf("comfort invented an object: %q", c)
+	}
+}
