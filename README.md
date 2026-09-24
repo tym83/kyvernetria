@@ -11,13 +11,13 @@ is checked against primary sources in [docs/RESEARCH.md](docs/RESEARCH.md),
 which also lists what we deliberately do **not** model and why.
 
 > **Averages, not people.** For almost every psychological trait, the
-> distributions for women and men overlap heavily (for most, by 85% or more). Nothing here describes or
-> predicts any individual. Many of these differences have social as well as
-> biological causes.
+> distributions for women and men overlap heavily (for most, by 85% or
+> more). Nothing here describes or predicts any individual. Many of these
+> differences have social as well as biological causes.
 
 Kyvernetria is a build of Kubernetes, not an add-on. The changes live inside
-kube-apiserver, kube-scheduler, kube-controller-manager and the CLI. Everything
-upstream Kubernetes does still works.
+kube-apiserver, kube-scheduler, kube-controller-manager and the CLI. Apart
+from the changes listed below, upstream behaviour is unchanged.
 
 ## What is different
 
@@ -30,7 +30,7 @@ upstream Kubernetes does still works.
 | Getting rid of a bad pod | Kill it | `kyvctl exclude pod/x`: it keeps running and stays Ready, but no Service sends it traffic | Indirect aggression shows little or no sex difference |
 | Termination grace period | 30 s | 300 s: pods get time to finish | Higher average agreeableness (d ≈ 0.48) |
 | Event retention | 1 hour | 30 days, with `kyvctl remember deploy/x` telling the workload's story, including pods that no longer exist | Small female advantage in episodic memory (g ≈ 0.19) |
-| Scheduling | Pods land anywhere they fit | **PlaceMemory**: the scheduler prefers nodes a workload already lived on, so caches and local volumes stay warm | Female advantage in object-location memory (task-dependent) |
+| Scheduling | Pods land anywhere they fit | **PlaceMemory**: the scheduler prefers nodes a workload already lived on, so caches and local volumes stay warm | Small-to-moderate, task-dependent female advantage in object-location memory |
 | Service graph | Pods are cattle; links between them are implicit | **Relationships** are API objects: `kubectl get relationships` shows who serves whom and who talks to whom | People-vs-things interest, one of the largest psychological sex differences (d ≈ 0.93; distributions still overlap ~64%) |
 | Capacity warnings | Silent until pods stop fitting | **Worry** controller warns at 70% of allocatable, and says when it relaxes. `kyvctl calm` folds the extra noise into a short list | Higher average neuroticism (d ≈ 0.39, self-report, large overlap): modelled as earlier vigilance |
 | Scheduling failures | `0/3 nodes are available: 3 Insufficient cpu.` | `We couldn't place shop/api yet: every node is short on CPU. We'll try again as soon as something changes. (0/3 nodes are available: 3 Insufficient cpu.)` | More social, person-directed wording (small effect). Not longer: women and men speak a similar number of words per day |
@@ -42,8 +42,8 @@ upstream Kubernetes does still works.
 Women's tissues are cellular mosaics. Early in development each cell silences
 one of its two X chromosomes at random, and all of that cell's descendants
 keep the choice, so a tissue mixes two cell populations, often in a skewed
-rather than a 50:50 ratio. Engineers know the same idea as N-version programming: nodes
-running different builds do not share every bug.
+rather than a 50:50 ratio. Engineers know the same idea as N-version
+programming: nodes running different builds do not share every bug.
 
 Each control-plane node carries both alleles of kube-apiserver, behind a
 small wrapper, `x-inactivation`:
@@ -55,7 +55,7 @@ small wrapper, `x-inactivation`:
 ```
 
 kube-controller-manager and kube-scheduler always run the older allele (Xp).
-The version skew policy forbids them to be newer than any apiserver they may
+The version skew policy forbids them from being newer than any apiserver they may
 talk to, so only kube-apiserver varies from node to node.
 
 - **Inactivation.** On the first boot of a node, the wrapper picks Xm or Xp
@@ -76,7 +76,7 @@ talk to, so only kube-apiserver varies from node to node.
   upgrades.
 - **Honest limits.** Two builds are diverse, not independent: the classic
   N-version experiment (Knight & Leveson 1986) found far more coincident
-  failures than independence predicts. Emulated version also narrows the
+  failures than independence predicts. Emulation also narrows the
   diversity: the Xm build runs 1.36 semantics, so the alleles share one API
   contract and differ only in implementation. And a mosaic cluster
   permanently runs the mixed-version configuration that upstream supports
@@ -249,7 +249,8 @@ These are mapped in [docs/RESEARCH.md](docs/RESEARCH.md) but not built yet:
 different default resource requests (sex differences in pharmacokinetics),
 sustained-load tuning (greater fatigue resistance at submaximal effort), deeper
 health checks (camouflaging), early adoption of alpha APIs with strict label
-conventions (women lead most language change from below), and a longer support window.
+conventions (women lead most language change from below), and a longer
+support window.
 Log "sniffing" was dropped: the sense-of-smell advantage is small to trivial.
 
 ## Trademark and conformance
