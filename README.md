@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo/kyvernetria-512.png" alt="Kyvernetria logo: a red plasticine helm" width="200"></p>
+
 # Kyvernetria (a.k.a. Femenetes)
 
 Kyvernetria is a distribution based on Kubernetes whose behaviour follows
