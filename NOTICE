@@ -4,4 +4,28 @@ Copyright 2026 The Kyvernetria Authors
 This product is a set of patches and additions to Kubernetes
 (https://github.com/kubernetes/kubernetes), Copyright The Kubernetes Authors,
 licensed under the Apache License, Version 2.0. Kyvernetria is not affiliated
-with or endorsed by the Kubernetes project or the CNCF.
+with or endorsed by the Kubernetes project, the CNCF or The Linux Foundation.
+Kubernetes is a registered trademark of The Linux Foundation.
+
+Modified upstream files
+-----------------------
+
+Kyvernetria modifies the following upstream Kubernetes files, through the
+patches in kubernetes/patches/:
+
+  cmd/kube-controller-manager/app/controller_descriptor.go
+  pkg/apis/core/v1/defaults.go
+  pkg/controlplane/apiserver/options/options.go
+  pkg/kubeapiserver/options/plugins.go
+  pkg/scheduler/apis/config/v1/default_plugins.go
+  pkg/scheduler/framework/plugins/names/names.go
+  pkg/scheduler/framework/plugins/registry.go
+  pkg/scheduler/schedule_one.go
+  plugin/pkg/auth/authorizer/rbac/bootstrappolicy/controller_policy.go
+  plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go
+  staging/src/k8s.io/endpointslice/util/controller_utils.go
+
+In addition, hack/update-test-expectations.sh adjusts upstream unit-test
+expectations to Kyvernetria's changed defaults: it edits expected values in
+upstream tests and test helpers, and regenerates the RBAC bootstrap-policy
+test fixtures with upstream's own test. Test logic is not changed.

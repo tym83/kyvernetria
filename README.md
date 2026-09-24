@@ -1,9 +1,9 @@
 # Kyvernetria (a.k.a. Femenetes)
 
-Kyvernetria is a Kubernetes distribution whose behaviour follows evidence-based
-**average** sex differences between women and men. *Kubernetes* is Greek for
-"helmsman" (κυβερνήτης). *Kyvernetria* (κυβερνήτρια) is the feminine form of
-the same word.
+Kyvernetria is a distribution based on Kubernetes whose behaviour follows
+evidence-based **average** sex differences between women and men.
+*Kubernetes* is Greek for "helmsman" (κυβερνήτης). *Kyvernetria*
+(κυβερνήτρια) is the feminine form of the same word.
 
 It is a joke with a serious constraint: every behaviour borrowed from a sex
 difference must rest on published research, stated accurately. Each claim
@@ -252,7 +252,15 @@ health checks (camouflaging), early adoption of alpha APIs with strict label
 conventions (women lead most language change from below), and a longer support window.
 Log "sniffing" was dropped: the sense-of-smell advantage is small to trivial.
 
+## Trademark and conformance
+
+Kubernetes is a registered trademark of The Linux Foundation. Kyvernetria is
+not a Certified Kubernetes product: its changed defaults (admission plugins on
+by default, a 300 s grace period) would not pass conformance. Kyvernetria is
+not affiliated with or endorsed by the Kubernetes project, the CNCF or The
+Linux Foundation.
+
 ## License
 
-Apache License 2.0, like Kubernetes. Kyvernetria is not affiliated with the
-Kubernetes project or the CNCF. See [NOTICE](NOTICE).
+Apache License 2.0, like Kubernetes. Kyvernetria modifies upstream Kubernetes
+files; [NOTICE](NOTICE) lists them.
