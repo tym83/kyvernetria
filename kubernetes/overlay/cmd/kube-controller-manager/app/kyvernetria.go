@@ -103,7 +103,7 @@ func newKyvernetriaWorryController(ctx context.Context, controllerContext Contro
 	broadcaster := record.NewBroadcaster(record.WithContext(ctx))
 	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "kyvernetria-worry"})
 	f := controllerContext.InformerFactory
-	c := worry.New(f.Core().V1().Nodes(), f.Core().V1().Pods(), recorder)
+	c := worry.New(client, f.Core().V1().Nodes(), f.Core().V1().Pods(), recorder)
 	return newControllerLoop(func(ctx context.Context) {
 		broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: client.CoreV1().Events("")})
 		defer broadcaster.Shutdown()

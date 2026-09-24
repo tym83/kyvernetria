@@ -17,18 +17,19 @@ limitations under the License.
 // Package humanize turns terse component messages into sentences addressed
 // to a person.
 //
-// Models: a small average female advantage in verbal fluency and more
-// social, person-directed word use (pronouns, "we", "you"; Newman et al.
-// 2008). It deliberately does not make messages longer than necessary:
-// women and men speak a similar number of words per day (Mehl et al. 2007,
-// replicated at larger scale in 2025). The original upstream text is
-// kept in parentheses so that nothing grepping for it breaks.
+// Models: more social, person-directed word use (pronouns, "we", "you"),
+// a small effect (Newman et al. 2008). It deliberately does not make
+// messages longer than necessary: women and men speak a similar number of
+// words per day (Mehl et al. 2007; a larger 2025 replication found no
+// conclusive overall difference). The original upstream text is kept in
+// parentheses so that nothing grepping for it breaks.
 package humanize
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 type phrase struct {
@@ -74,28 +75,57 @@ func Reason(reason string, count, total int) string {
 	return fmt.Sprintf("%d nodes: %s", count, reason)
 }
 
-// SchedulingFailure renders a FitError for a person.
-func SchedulingFailure(pod string, totalNodes int, reasons map[string]int, upstream string) string {
+// SchedulingFailure renders a FitError for a person in at most limit
+// bytes. The upstream text is always kept whole, in parentheses at the end,
+// so that anything grepping for it still matches; when the message is too
+// long, the human part is shortened instead. If even the upstream text
+// doesn't fit, it is returned alone for the caller to truncate as
+// upstream does.
+func SchedulingFailure(pod string, totalNodes int, reasons map[string]int, upstream string, limit int) string {
+	var human string
 	if totalNodes == 0 {
-		return fmt.Sprintf("We couldn't place %s yet: the cluster has no nodes I can use. (%s)", pod, upstream)
-	}
-	keys := make([]string, 0, len(reasons))
-	for k := range reasons {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if reasons[keys[i]] != reasons[keys[j]] {
-			return reasons[keys[i]] > reasons[keys[j]]
+		human = fmt.Sprintf("We couldn't place %s yet: the cluster has no nodes we can use.", pod)
+	} else {
+		keys := make([]string, 0, len(reasons))
+		for k := range reasons {
+			keys = append(keys, k)
 		}
-		return keys[i] < keys[j]
-	})
-	parts := make([]string, 0, len(keys))
-	for _, k := range keys {
-		parts = append(parts, Reason(k, reasons[k], totalNodes))
+		sort.Slice(keys, func(i, j int) bool {
+			if reasons[keys[i]] != reasons[keys[j]] {
+				return reasons[keys[i]] > reasons[keys[j]]
+			}
+			return keys[i] < keys[j]
+		})
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, Reason(k, reasons[k], totalNodes))
+		}
+		why := strings.Join(parts, ", ")
+		if why == "" {
+			why = "no node fits"
+		}
+		human = fmt.Sprintf("We couldn't place %s yet: %s. We'll try again as soon as something changes.", pod, why)
 	}
-	why := strings.Join(parts, ", ")
-	if why == "" {
-		why = "no node fits"
+	return withUpstream(human, upstream, limit)
+}
+
+// minHuman is the shortest human part worth keeping in front of the
+// upstream text.
+const minHuman = 40
+
+func withUpstream(human, upstream string, limit int) string {
+	suffix := " (" + upstream + ")"
+	if len(human)+len(suffix) <= limit {
+		return human + suffix
 	}
-	return fmt.Sprintf("We couldn't place %s yet: %s. I'll try again as soon as something changes. (%s)", pod, why, upstream)
+	const ellipsis = "..."
+	room := limit - len(suffix) - len(ellipsis)
+	if room < minHuman {
+		return upstream
+	}
+	cut := room
+	for cut > 0 && !utf8.RuneStart(human[cut]) {
+		cut--
+	}
+	return strings.TrimRight(human[:cut], " ,") + ellipsis + suffix
 }

@@ -17,7 +17,8 @@ limitations under the License.
 // Package worry raises a warning before a node is full, not after.
 //
 // Models: higher average neuroticism (Costa et al. 2001; Weisberg et al.
-// 2011), i.e. more sensitivity to potential threats. Upstream Kubernetes is
+// 2011) (d ≈ 0.39, self-report, large overlap), modelled as earlier
+// vigilance. Upstream Kubernetes is
 // silent until pods stop fitting; the worry controller speaks up when a
 // node's requests cross a threshold, and says so again when it relaxes.
 // Its downside, more alerts, is what `kyvctl calm` is for.
@@ -25,15 +26,24 @@ package worry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -54,23 +64,28 @@ const hysteresis = 5
 
 // Controller watches node requests against allocatable.
 type Controller struct {
+	client   kubernetes.Interface
 	nodes    corelisters.NodeLister
 	pods     corelisters.PodLister
 	synced   []cache.InformerSynced
 	recorder record.EventRecorder
 	period   time.Duration
-	worried  map[string]bool // node/resource
+	// worried holds, per node, the resources it is worried about. It is
+	// mirrored to the node's WorriedAnnotation so that a restart or a new
+	// leader doesn't announce the same worry twice.
+	worried map[string]sets.Set[v1.ResourceName]
 }
 
 // New creates the controller.
-func New(nodes coreinformers.NodeInformer, pods coreinformers.PodInformer, recorder record.EventRecorder) *Controller {
+func New(client kubernetes.Interface, nodes coreinformers.NodeInformer, pods coreinformers.PodInformer, recorder record.EventRecorder) *Controller {
 	return &Controller{
+		client:   client,
 		nodes:    nodes.Lister(),
 		pods:     pods.Lister(),
 		synced:   []cache.InformerSynced{nodes.Informer().HasSynced, pods.Informer().HasSynced},
 		recorder: recorder,
 		period:   time.Minute,
-		worried:  map[string]bool{},
+		worried:  map[string]sets.Set[v1.ResourceName]{},
 	}
 }
 
@@ -84,13 +99,13 @@ func (c *Controller) Run(ctx context.Context) {
 		return
 	}
 	wait.UntilWithContext(ctx, func(ctx context.Context) {
-		if err := c.check(); err != nil {
+		if err := c.check(ctx); err != nil {
 			utilruntime.HandleErrorWithContext(ctx, err, "Worrying failed")
 		}
 	}, c.period)
 }
 
-func (c *Controller) check() error {
+func (c *Controller) check(ctx context.Context) error {
 	nodes, err := c.nodes.List(labels.Everything())
 	if err != nil {
 		return err
@@ -100,25 +115,83 @@ func (c *Controller) check() error {
 		return err
 	}
 	requested := Requested(pods)
+	present := sets.New[string]()
+	var errs []error
 	for _, node := range nodes {
+		present.Insert(node.Name)
+		state, ok := c.worried[node.Name]
+		if !ok {
+			state = decodeWorried(node.Annotations[kyvernetria.WorriedAnnotation])
+			c.worried[node.Name] = state
+		}
 		for _, res := range []v1.ResourceName{v1.ResourceCPU, v1.ResourceMemory} {
-			c.feel(node, res, Percent(requested[node.Name][res], node.Status.Allocatable[res]))
+			c.feel(node, res, Percent(requested[node.Name][res], node.Status.Allocatable[res]), state)
+		}
+		if err := c.persist(ctx, node, state); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	for name := range c.worried {
+		if !present.Has(name) {
+			delete(c.worried, name) // the node is gone
+		}
+	}
+	return utilerrors.NewAggregate(errs)
+}
+
+// persist writes the node's worries to its annotation when they differ.
+func (c *Controller) persist(ctx context.Context, node *v1.Node, state sets.Set[v1.ResourceName]) error {
+	want := encodeWorried(state)
+	if node.Annotations[kyvernetria.WorriedAnnotation] == want {
+		return nil
+	}
+	var value interface{} = want
+	if want == "" {
+		value = nil // a JSON merge patch null removes the key
+	}
+	patch, err := json.Marshal(map[string]interface{}{
+		"metadata": map[string]interface{}{"annotations": map[string]interface{}{kyvernetria.WorriedAnnotation: value}},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = c.client.CoreV1().Nodes().Patch(ctx, node.Name, types.MergePatchType, patch,
+		metav1.PatchOptions{FieldManager: "kyvernetria-worry"})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+func decodeWorried(raw string) sets.Set[v1.ResourceName] {
+	state := sets.New[v1.ResourceName]()
+	for _, r := range strings.Split(raw, ",") {
+		if r != "" {
+			state.Insert(v1.ResourceName(r))
+		}
+	}
+	return state
+}
+
+func encodeWorried(state sets.Set[v1.ResourceName]) string {
+	names := make([]string, 0, state.Len())
+	for r := range state {
+		names = append(names, string(r))
+	}
+	sort.Strings(names)
+	return strings.Join(names, ",")
 }
 
 // feel turns a usage percentage into at most one event per state change.
-func (c *Controller) feel(node *v1.Node, res v1.ResourceName, pct int64) {
-	key := node.Name + "/" + string(res)
+func (c *Controller) feel(node *v1.Node, res v1.ResourceName, pct int64, state sets.Set[v1.ResourceName]) {
 	switch {
-	case !c.worried[key] && pct >= kyvernetria.WorryThresholdPercent:
-		c.worried[key] = true
+	case !state.Has(res) && pct >= kyvernetria.WorryThresholdPercent:
+		state.Insert(res)
 		c.recorder.Eventf(node, v1.EventTypeWarning, ReasonWorried,
 			"%s requests on %s reached %d%% of allocatable. Nothing is failing yet; I'm telling you early.",
 			label(res), node.Name, pct)
-	case c.worried[key] && pct < kyvernetria.WorryThresholdPercent-hysteresis:
-		delete(c.worried, key)
+	case state.Has(res) && pct < kyvernetria.WorryThresholdPercent-hysteresis:
+		state.Delete(res)
 		c.recorder.Eventf(node, v1.EventTypeNormal, ReasonRelieved,
 			"%s requests on %s are back to %d%% of allocatable.", label(res), node.Name, pct)
 	}
@@ -162,5 +235,9 @@ func Percent(used, total resource.Quantity) int64 {
 
 // String is for logs and tests.
 func (c *Controller) String() string {
-	return fmt.Sprintf("worry(%d worries)", len(c.worried))
+	n := 0
+	for _, state := range c.worried {
+		n += state.Len()
+	}
+	return fmt.Sprintf("worry(%d worries)", n)
 }

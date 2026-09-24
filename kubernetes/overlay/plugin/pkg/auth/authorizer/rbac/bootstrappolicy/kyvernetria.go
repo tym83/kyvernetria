@@ -48,7 +48,7 @@ func addKyvernetriaControllerRoles(roles *[]rbacv1.ClusterRole, bindings *[]rbac
 	addControllerRole(roles, bindings, rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "kyvernetria-relationships"},
 		Rules: []rbacv1.PolicyRule{
-			rbacv1helpers.NewRule("get", "create").Groups(kyvernetriaExtensionsGroup).Resources("customresourcedefinitions").RuleOrDie(),
+			rbacv1helpers.NewRule("get", "create", "update").Groups(kyvernetriaExtensionsGroup).Resources("customresourcedefinitions").RuleOrDie(),
 			rbacv1helpers.NewRule("get", "list", "watch", "create", "update", "delete").Groups(kyvernetriaGroup).Resources("relationships").RuleOrDie(),
 			eventsRule(),
 		},
@@ -56,6 +56,8 @@ func addKyvernetriaControllerRoles(roles *[]rbacv1.ClusterRole, bindings *[]rbac
 	addControllerRole(roles, bindings, rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "kyvernetria-worry"},
 		Rules: []rbacv1.PolicyRule{
+			// Remembers its worries on the node (kyvernetria.io/worried).
+			rbacv1helpers.NewRule("patch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
 			eventsRule(),
 		},
 	})

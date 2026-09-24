@@ -17,17 +17,26 @@ limitations under the License.
 // Package placememory is the controller half of object-location memory: it
 // writes down where each workload's pods run. See package
 // k8s.io/kubernetes/pkg/kyvernetria/placement.
+//
+// The work queue holds workloads (holders), never single placements: each
+// sync recomputes the holder's memory from its current pods and writes only
+// when the value really changes, guarded by the resourceVersion it was
+// computed from, so concurrent workers and stale caches cannot lose updates.
 package placememory
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -35,6 +44,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -43,11 +53,12 @@ import (
 	"k8s.io/kubernetes/pkg/kyvernetria/placement"
 )
 
-var metav1PatchOptions = metav1.PatchOptions{FieldManager: "kyvernetria-place-memory"}
+var patchOptions = metav1.PatchOptions{FieldManager: "kyvernetria-place-memory"}
 
 // Controller records pod placements on their long-lived owners.
 type Controller struct {
 	client       clientset.Interface
+	pods         corelisters.PodLister
 	replicaSets  appslisters.ReplicaSetLister
 	deployments  appslisters.DeploymentLister
 	statefulSets appslisters.StatefulSetLister
@@ -60,6 +71,7 @@ func New(client clientset.Interface, pods coreinformers.PodInformer, rs appsinfo
 	deploys appsinformers.DeploymentInformer, sts appsinformers.StatefulSetInformer) (*Controller, error) {
 	c := &Controller{
 		client:       client,
+		pods:         pods.Lister(),
 		replicaSets:  rs.Lister(),
 		deployments:  deploys.Lister(),
 		statefulSets: sts.Lister(),
@@ -71,26 +83,90 @@ func New(client clientset.Interface, pods coreinformers.PodInformer, rs appsinfo
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: "kyvernetria_place_memory"}),
 	}
-	_, err := pods.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.enqueue,
-		UpdateFunc: func(_, obj interface{}) { c.enqueue(obj) },
-	})
-	return c, err
+	if _, err := pods.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.enqueuePod,
+		UpdateFunc: func(_, obj interface{}) { c.enqueuePod(obj) },
+	}); err != nil {
+		return nil, err
+	}
+	// A workload that was too spread to remember may shrink back.
+	scaled := func(kind string) cache.ResourceEventHandlerFuncs {
+		return cache.ResourceEventHandlerFuncs{UpdateFunc: func(old, obj interface{}) {
+			if replicas(old) != replicas(obj) {
+				if m, err := meta.Accessor(obj); err == nil {
+					c.queue.Add(placement.Holder{Kind: kind, Namespace: m.GetNamespace(), Name: m.GetName()}.String())
+				}
+			}
+		}}
+	}
+	if _, err := deploys.Informer().AddEventHandler(scaled(placement.Deployment)); err != nil {
+		return nil, err
+	}
+	if _, err := sts.Informer().AddEventHandler(scaled(placement.StatefulSet)); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
-// key encodes kind/namespace/name/node.
-func key(h placement.Holder, node string) string {
-	return strings.Join([]string{h.Kind, h.Namespace, h.Name, node}, "/")
+func replicas(obj interface{}) int32 {
+	switch o := obj.(type) {
+	case *appsv1.Deployment:
+		if o.Spec.Replicas != nil {
+			return *o.Spec.Replicas
+		}
+	case *appsv1.StatefulSet:
+		if o.Spec.Replicas != nil {
+			return *o.Spec.Replicas
+		}
+	}
+	return 1
 }
 
-func (c *Controller) enqueue(obj interface{}) {
+func running(pod *v1.Pod) bool {
+	return pod.Spec.NodeName != "" && pod.Status.Phase == v1.PodRunning && pod.DeletionTimestamp == nil
+}
+
+// enqueuePod queues the pod's holder unless the pod is already remembered
+// where it runs, so the steady state costs one lister lookup per pod event.
+func (c *Controller) enqueuePod(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
-	if !ok || pod.Spec.NodeName == "" || pod.Status.Phase != v1.PodRunning || pod.DeletionTimestamp != nil {
+	if !ok || !running(pod) {
 		return
 	}
-	if h, ok := placement.HolderFor(pod, c.replicaSets); ok {
-		c.queue.Add(key(h, pod.Spec.NodeName))
+	h, ok := placement.HolderFor(pod, c.replicaSets)
+	if !ok {
+		return
 	}
+	if obj, err := c.holder(h); err == nil && c.remembers(h, obj.GetAnnotations(), pod) {
+		return
+	}
+	c.queue.Add(h.String())
+}
+
+func (c *Controller) remembers(h placement.Holder, annotations map[string]string, pod *v1.Pod) bool {
+	if h.Kind == placement.StatefulSet {
+		ord, ok := placement.Ordinal(pod, h.Name)
+		return ok && placement.DecodeOrdinals(annotations)[ord] == pod.Spec.NodeName
+	}
+	for _, n := range placement.Decode(annotations) {
+		if n == pod.Spec.NodeName {
+			return true
+		}
+	}
+	return false
+}
+
+// holder returns the holder object from the cache.
+func (c *Controller) holder(h placement.Holder) (metav1.Object, error) {
+	switch h.Kind {
+	case placement.Deployment:
+		return c.deployments.Deployments(h.Namespace).Get(h.Name)
+	case placement.StatefulSet:
+		return c.statefulSets.StatefulSets(h.Namespace).Get(h.Name)
+	case placement.ReplicaSet:
+		return c.replicaSets.ReplicaSets(h.Namespace).Get(h.Name)
+	}
+	return nil, fmt.Errorf("unknown holder kind %q", h.Kind)
 }
 
 // Run starts workers until ctx is done.
@@ -129,60 +205,120 @@ func (c *Controller) next(ctx context.Context) bool {
 	return true
 }
 
-func (c *Controller) sync(ctx context.Context, k string) error {
-	parts := strings.Split(k, "/")
-	if len(parts) != 4 {
+// runningPods maps each node to the ordinals of the holder's running pods
+// there (the ordinals are only meaningful for a StatefulSet).
+func (c *Controller) runningPods(h placement.Holder) (map[string][]int, error) {
+	pods, err := c.pods.Pods(h.Namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]int{}
+	for _, pod := range pods {
+		if !running(pod) {
+			continue
+		}
+		if ph, ok := placement.HolderFor(pod, c.replicaSets); !ok || ph != h {
+			continue
+		}
+		ord := -1
+		if h.Kind == placement.StatefulSet {
+			var ok bool
+			if ord, ok = placement.Ordinal(pod, h.Name); !ok {
+				continue
+			}
+		}
+		out[pod.Spec.NodeName] = append(out[pod.Spec.NodeName], ord)
+	}
+	return out, nil
+}
+
+func (c *Controller) sync(ctx context.Context, key string) error {
+	h, ok := placement.ParseHolder(key)
+	if !ok {
 		return nil
 	}
-	kind, ns, name, node := parts[0], parts[1], parts[2], parts[3]
-
-	var annotations map[string]string
-	switch kind {
-	case "Deployment":
-		d, err := c.deployments.Deployments(ns).Get(name)
-		if err != nil {
-			return nil
-		}
-		annotations = d.Annotations
-	case "StatefulSet":
-		s, err := c.statefulSets.StatefulSets(ns).Get(name)
-		if err != nil {
-			return nil
-		}
-		annotations = s.Annotations
-	case "ReplicaSet":
-		rs, err := c.replicaSets.ReplicaSets(ns).Get(name)
-		if err != nil {
-			return nil
-		}
-		annotations = rs.Annotations
-	default:
+	cached, err := c.holder(h)
+	if apierrors.IsNotFound(err) {
 		return nil
 	}
+	if err != nil {
+		return err
+	}
+	pods, err := c.runningPods(h)
+	if err != nil {
+		return err
+	}
+	current := cached
+	for attempt := 0; attempt < 5; attempt++ {
+		previous := current.GetAnnotations()[kyvernetria.RememberedNodesAnnotation]
+		want := placement.Recall(h.Kind, previous, pods)
+		if want == previous {
+			return nil
+		}
+		err := c.write(ctx, h, current.GetResourceVersion(), want)
+		if !apierrors.IsConflict(err) {
+			return err
+		}
+		// Someone else changed the holder since our copy: start again from
+		// the live object instead of overwriting their change.
+		current, err = c.get(ctx, h)
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("%s %s/%s kept changing while its memory was written", h.Kind, h.Namespace, h.Name)
+}
 
-	updated, changed := placement.Remember(placement.Decode(annotations), node)
-	if !changed {
-		return nil
+// write sets (or, for "", removes) the annotation, but only if the holder
+// is still at resourceVersion.
+func (c *Controller) write(ctx context.Context, h placement.Holder, resourceVersion, value string) error {
+	var annotation interface{} = value
+	if value == "" {
+		annotation = nil // a JSON merge patch null removes the key
 	}
 	patch, err := json.Marshal(map[string]interface{}{
 		"metadata": map[string]interface{}{
-			"annotations": map[string]string{kyvernetria.RememberedNodesAnnotation: placement.Encode(updated)},
+			"resourceVersion": resourceVersion,
+			"annotations":     map[string]interface{}{kyvernetria.RememberedNodesAnnotation: annotation},
 		},
 	})
 	if err != nil {
 		return err
 	}
 	apps := c.client.AppsV1()
-	switch kind {
-	case "Deployment":
-		_, err = apps.Deployments(ns).Patch(ctx, name, types.MergePatchType, patch, metav1PatchOptions)
-	case "StatefulSet":
-		_, err = apps.StatefulSets(ns).Patch(ctx, name, types.MergePatchType, patch, metav1PatchOptions)
-	case "ReplicaSet":
-		_, err = apps.ReplicaSets(ns).Patch(ctx, name, types.MergePatchType, patch, metav1PatchOptions)
+	switch h.Kind {
+	case placement.Deployment:
+		_, err = apps.Deployments(h.Namespace).Patch(ctx, h.Name, types.MergePatchType, patch, patchOptions)
+	case placement.StatefulSet:
+		_, err = apps.StatefulSets(h.Namespace).Patch(ctx, h.Name, types.MergePatchType, patch, patchOptions)
+	case placement.ReplicaSet:
+		_, err = apps.ReplicaSets(h.Namespace).Patch(ctx, h.Name, types.MergePatchType, patch, patchOptions)
+	}
+	if err != nil && !apierrors.IsConflict(err) {
+		return fmt.Errorf("patching %s %s/%s: %w", h.Kind, h.Namespace, h.Name, err)
+	}
+	return err
+}
+
+func (c *Controller) get(ctx context.Context, h placement.Holder) (metav1.Object, error) {
+	apps := c.client.AppsV1()
+	var obj runtime.Object
+	var err error
+	switch h.Kind {
+	case placement.Deployment:
+		obj, err = apps.Deployments(h.Namespace).Get(ctx, h.Name, metav1.GetOptions{})
+	case placement.StatefulSet:
+		obj, err = apps.StatefulSets(h.Namespace).Get(ctx, h.Name, metav1.GetOptions{})
+	case placement.ReplicaSet:
+		obj, err = apps.ReplicaSets(h.Namespace).Get(ctx, h.Name, metav1.GetOptions{})
+	default:
+		return nil, fmt.Errorf("unknown holder kind %q", h.Kind)
 	}
 	if err != nil {
-		return fmt.Errorf("patching %s %s/%s: %w", kind, ns, name, err)
+		return nil, err
 	}
-	return nil
+	return meta.Accessor(obj)
 }
