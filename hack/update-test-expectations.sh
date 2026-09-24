@@ -34,10 +34,14 @@ for f in pkg/apis/apps/v1/defaults_test.go pkg/apis/apps/v1beta1/defaults_test.g
   fi
 done
 
-# Scheduler: PlaceMemory scores right after ImageLocality.
-grep -q 'names.PlaceMemory' pkg/scheduler/apis/config/testing/defaults/defaults.go ||
+# Scheduler: PlaceMemory scores right after ImageLocality, and as a PreScore
+# plugin it comes last in the expanded PreScore list (it is last in MultiPoint).
+grep -q 'names.PlaceMemory' pkg/scheduler/apis/config/testing/defaults/defaults.go || {
+  perl -0pi -e 's|(\tPreScore: config.PluginSet\{\n\t\tEnabled: \[\]config.Plugin\{\n(?:\t\t\t\{[^\n]*\n)*?)(\t\t\},)|$1\t\t\t{Name: names.PlaceMemory},\n$2|' \
+    pkg/scheduler/apis/config/testing/defaults/defaults.go
   perl -pi -e 's|^(\t+)\{Name: names.ImageLocality, Weight: 1\},\n|$&$1\{Name: names.PlaceMemory, Weight: 2\},\n|' \
     pkg/scheduler/apis/config/testing/defaults/defaults.go
+}
 for f in pkg/scheduler/apis/config/v1/default_plugins_test.go pkg/scheduler/apis/config/v1/defaults_test.go; do
   grep -q 'names.PlaceMemory' "$f" ||
     perl -pi -e 's|^(\t+)\{Name: names.ImageLocality, Weight: ptr.To\[int32\]\(1\)\},\n|$&$1\{Name: names.PlaceMemory, Weight: ptr.To[int32](2)\},\n|' "$f"
