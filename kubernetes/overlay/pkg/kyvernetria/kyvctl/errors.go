@@ -18,6 +18,8 @@ package kyvctl
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,32 +62,88 @@ func Explain(msg string) string {
 // Failures remembers recent failed invocations to notice frustration: the
 // same command failing again and again within a few minutes.
 //
-// Models: a small-to-moderate female advantage in recognizing emotions
-// (Thompson & Voyer 2014). A CLI can't see a face; repetition is the one
-// signal it has.
+// Models: a small average female advantage in recognizing emotions
+// (d ≈ 0.19; Thompson & Voyer 2014). A CLI can't see a face; repetition
+// is the one signal it has.
+//
+// Only a SHA-256 of a redacted command line is stored, never the command
+// itself: command lines carry tokens, passwords and secret literals.
 type Failures struct {
+	// Path of the history file; empty disables the history.
 	Path   string
 	Window time.Duration
 	Now    func() time.Time
 }
 
-// DefaultFailures stores history under the user cache directory.
+// DefaultFailures stores history under the user cache directory. Without
+// one there is no history: a shared directory such as /tmp is not safe for
+// it.
 func DefaultFailures() *Failures {
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		dir = os.TempDir()
+	f := &Failures{Window: 3 * time.Minute, Now: time.Now}
+	if dir, err := os.UserCacheDir(); err == nil && dir != "" {
+		f.Path = filepath.Join(dir, "kyvernetria", "failures")
 	}
-	return &Failures{Path: filepath.Join(dir, "kyvernetria", "failures"), Window: 3 * time.Minute, Now: time.Now}
+	return f
+}
+
+// keptFlagValues are flags whose values say which command it was and hold
+// nothing secret. Every other flag's value is dropped before hashing.
+var keptFlagValues = map[string]bool{
+	"-n": true, "--namespace": true, "--context": true, "--cluster": true,
+	"-o": true, "--output": true, "-l": true, "--selector": true, "-f": true, "--filename": true,
+}
+
+// Fingerprint identifies a command line without keeping it: flag values
+// other than a few harmless ones and everything after "--" are dropped,
+// and the rest is hashed.
+func Fingerprint(args []string) string {
+	var kept []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			break
+		}
+		if !strings.HasPrefix(a, "-") || a == "-" {
+			kept = append(kept, a)
+			continue
+		}
+		name, _, hasValue := strings.Cut(a, "=")
+		keep := keptFlagValues[name]
+		switch {
+		case hasValue && keep:
+			kept = append(kept, a)
+		case hasValue:
+			kept = append(kept, name)
+		default:
+			kept = append(kept, name)
+			// The next argument may be this flag's value.
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				if keep {
+					kept = append(kept, args[i])
+				}
+			}
+		}
+	}
+	sum := sha256.Sum256([]byte(strings.Join(kept, "\x00")))
+	return hex.EncodeToString(sum[:])
 }
 
 // Record stores a failure of args and returns how many times the same
 // command failed within the window, this one included.
 func (f *Failures) Record(args []string) int {
+	if f.Path == "" {
+		return 1
+	}
 	now := f.Now()
-	cmd := strings.Join(args, " ")
+	cmd := Fingerprint(args)
+	dir := filepath.Dir(f.Path)
+	if err := privateDir(dir); err != nil {
+		return 1
+	}
 	var kept []string
 	count := 1
-	if file, err := os.Open(f.Path); err == nil {
+	if file, err := openNoFollow(f.Path); err == nil {
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
 			ts, prev, ok := strings.Cut(scanner.Text(), "\t")
@@ -104,10 +162,49 @@ func (f *Failures) Record(args []string) int {
 		_ = file.Close()
 	}
 	kept = append(kept, fmt.Sprintf("%d\t%s", now.Unix(), cmd))
-	if err := os.MkdirAll(filepath.Dir(f.Path), 0o700); err == nil {
-		_ = os.WriteFile(f.Path, []byte(strings.Join(kept, "\n")+"\n"), 0o600)
-	}
+	_ = writeAtomically(dir, f.Path, []byte(strings.Join(kept, "\n")+"\n"))
 	return count
+}
+
+// privateDir makes sure dir exists, is a real directory (not a symlink),
+// belongs to the current user and is closed to others.
+func privateDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", dir)
+	}
+	if !ownedByCurrentUser(info) {
+		return fmt.Errorf("%s belongs to someone else", dir)
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		return os.Chmod(dir, 0o700)
+	}
+	return nil
+}
+
+// writeAtomically replaces path with data through a fresh temporary file,
+// so a crash or a concurrent kyvctl never leaves a half-written history and
+// a symlink at path is replaced rather than followed.
+func writeAtomically(dir, path string, data []byte) error {
+	tmp, err := os.CreateTemp(dir, ".failures-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) //nolint:errcheck // gone after a successful rename
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // Comfort is what kyvctl says when it notices the same failure repeating.
@@ -122,7 +219,7 @@ func Comfort(count int, args []string) string {
 			break
 		}
 	}
-	return fmt.Sprintf("That's %d times in a row. Let's step back instead of retrying: %s.", count, hint)
+	return fmt.Sprintf("That's %d times in the last few minutes. Let's step back instead of retrying: %s.", count, hint)
 }
 
 // Fatal is installed as kubectl's fatal-error behavior.

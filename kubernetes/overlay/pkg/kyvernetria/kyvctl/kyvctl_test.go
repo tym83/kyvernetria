@@ -19,6 +19,7 @@ package kyvctl
 import (
 	"bytes"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,8 +48,8 @@ func TestExplain(t *testing.T) {
 
 func TestFailuresNoticeRepetition(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
-	f := &Failures{Path: filepath.Join(t.TempDir(), "failures"), Window: 3 * time.Minute, Now: func() time.Time { return now }}
-	args := []string{"get", "deploy/api"}
+	f := &Failures{Path: filepath.Join(t.TempDir(), "kyvernetria", "failures"), Window: 3 * time.Minute, Now: func() time.Time { return now }}
+	args := []string{"get", "deploy/api", "--token", "s3cret"}
 	if n := f.Record(args); n != 1 {
 		t.Fatalf("first failure counted %d", n)
 	}
@@ -62,8 +63,18 @@ func TestFailuresNoticeRepetition(t *testing.T) {
 	if n != 3 {
 		t.Fatalf("third failure counted %d", n)
 	}
-	if c := Comfort(n, args); !strings.Contains(c, "kyvctl remember deploy/api") {
-		t.Errorf("comfort did not point at the object: %q", c)
+	if c := Comfort(n, args); !strings.Contains(c, "kyvctl remember deploy/api") || !strings.Contains(c, "3 times in the last few minutes") {
+		t.Errorf("unexpected comfort: %q", c)
+	}
+	raw, err := os.ReadFile(f.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "s3cret") || strings.Contains(string(raw), "deploy/api") {
+		t.Errorf("history keeps the command line:\n%s", raw)
+	}
+	if info, err := os.Stat(filepath.Dir(f.Path)); err != nil || info.Mode().Perm() != 0o700 {
+		t.Errorf("history directory is not private: %v %v", info.Mode(), err)
 	}
 	now = now.Add(10 * time.Minute)
 	if n := f.Record(args); n != 1 {
@@ -71,6 +82,54 @@ func TestFailuresNoticeRepetition(t *testing.T) {
 	}
 	if Comfort(2, args) != "" {
 		t.Error("comforted too early")
+	}
+}
+
+func TestFingerprintRedacts(t *testing.T) {
+	same := [][]string{
+		{"get", "pods", "--token", "a"},
+		{"get", "pods", "--token", "b"},
+		{"get", "pods", "--token=c"},
+	}
+	for _, args := range same[1:] {
+		if Fingerprint(args) != Fingerprint(same[0]) {
+			t.Errorf("secret value changed the fingerprint: %v", args)
+		}
+	}
+	if Fingerprint([]string{"get", "pods", "-n", "a"}) == Fingerprint([]string{"get", "pods", "-n", "b"}) {
+		t.Error("namespace no longer tells commands apart")
+	}
+	if Fingerprint([]string{"exec", "p", "--", "sh", "-c", "echo x"}) != Fingerprint([]string{"exec", "p", "--", "cat", "/secret"}) {
+		t.Error("the command after -- is part of the fingerprint")
+	}
+}
+
+func TestFailuresWithoutCacheDirKeepNoHistory(t *testing.T) {
+	f := &Failures{Window: time.Minute, Now: time.Now}
+	for i := 0; i < 3; i++ {
+		if n := f.Record([]string{"get", "pods"}); n != 1 {
+			t.Fatalf("counted %d without a history file", n)
+		}
+	}
+}
+
+func TestFailuresRefuseSymlinkedHistory(t *testing.T) {
+	dir := t.TempDir()
+	victim := filepath.Join(dir, "victim")
+	if err := os.WriteFile(victim, []byte("keep\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	history := filepath.Join(dir, "kyvernetria", "failures")
+	if err := os.MkdirAll(filepath.Dir(history), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, history); err != nil {
+		t.Skip("symlinks unsupported:", err)
+	}
+	f := &Failures{Path: history, Window: time.Minute, Now: time.Now}
+	f.Record([]string{"get", "pods"})
+	if raw, _ := os.ReadFile(victim); string(raw) != "keep\n" {
+		t.Errorf("history was written through a symlink: %q", raw)
 	}
 }
 
