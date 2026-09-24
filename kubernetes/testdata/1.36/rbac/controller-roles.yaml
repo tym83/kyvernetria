@@ -903,6 +903,7 @@ items:
     verbs:
     - create
     - get
+    - update
   - apiGroups:
     - kyvernetria.io
     resources:
@@ -932,6 +933,12 @@ items:
       kubernetes.io/bootstrapping: rbac-defaults
     name: system:controller:kyvernetria-worry
   rules:
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    verbs:
+    - patch
   - apiGroups:
     - ""
     - events.k8s.io
