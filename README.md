@@ -11,7 +11,7 @@ is checked against primary sources in [docs/RESEARCH.md](docs/RESEARCH.md),
 which also lists what we deliberately do **not** model and why.
 
 > **Averages, not people.** For almost every psychological trait, the
-> distributions for women and men overlap by 80–90%. Nothing here describes or
+> distributions for women and men overlap heavily (for most, by 85% or more). Nothing here describes or
 > predicts any individual. Many of these differences have social as well as
 > biological causes.
 
@@ -23,7 +23,7 @@ upstream Kubernetes does still works.
 
 | Behaviour | Upstream Kubernetes | Kyvernetria | Research basis |
 |---|---|---|---|
-| Control plane | Every node runs the same build | **Mosaic**: each control-plane node carries two builds from two minor releases and silences one at random, for good, at first boot. A crash-looping build is escaped by switching to the other | Random, clonal X-inactivation; ~15–25% of X-linked genes escape it. X-linked red-green colour blindness: ~8% of men vs ~0.5% of women |
+| Control plane | Every node runs the same build | **Mosaic**: each control-plane node carries two builds from two minor releases and silences one at random, for good, at first boot. A crash-looping build is escaped by switching to the other | Random, clonal X-inactivation; ~15–25% of X-linked genes escape it. X-linked red-green colour blindness: ~8% of men vs ~0.5% of women of Northern European ancestry |
 | Admission | Anything valid is admitted | **Immunity**: privileged containers, host namespaces, hostPath volumes and unpinned images are rejected outside namespaces marked *self* | Stronger average innate and adaptive immune responses |
 | ...and its side effect | | Sometimes legitimate infrastructure is attacked: `kyvctl diagnose autoimmune` finds it | Autoimmune disease is about twice as common in women |
 | Deleting pods | `--force --grace-period=0` kills at once | **NoBruteForce**: an immediate delete of a running pod is refused until someone annotates it `kyvernetria.io/discussed=true` | Lower average physical aggression (moderate to large) |
@@ -31,17 +31,18 @@ upstream Kubernetes does still works.
 | Termination grace period | 30 s | 300 s: pods get time to finish | Higher average agreeableness (d ≈ 0.48) |
 | Event retention | 1 hour | 30 days, with `kyvctl remember deploy/x` telling the workload's story, including pods that no longer exist | Small female advantage in episodic memory (g ≈ 0.19) |
 | Scheduling | Pods land anywhere they fit | **PlaceMemory**: the scheduler prefers nodes a workload already lived on, so caches and local volumes stay warm | Female advantage in object-location memory (task-dependent) |
-| Service graph | Pods are cattle; links between them are implicit | **Relationships** are API objects: `kubectl get relationships` shows who serves whom and who talks to whom | People-vs-things interest, the largest well-replicated difference (d ≈ 0.93) |
-| Capacity warnings | Silent until pods stop fitting | **Worry** controller warns at 70% of allocatable, and says when it relaxes. `kyvctl calm` folds the extra noise into a short list | Higher average neuroticism (d ≈ 0.39): more sensitivity to potential threats |
-| Scheduling failures | `0/3 nodes are available: 3 Insufficient cpu.` | `We couldn't place shop/api yet: every node is short on CPU. I'll try again as soon as something changes. (0/3 nodes are available: 3 Insufficient cpu.)` | More social, person-directed wording (small effect). Not longer: women and men speak a similar number of words per day |
-| CLI errors | Terse | `kyvctl` explains common errors in a sentence, and after the same command fails three times in a row it suggests stepping back | Small female advantage in emotion recognition (d ≈ 0.19); repetition is the only signal a CLI has |
+| Service graph | Pods are cattle; links between them are implicit | **Relationships** are API objects: `kubectl get relationships` shows who serves whom and who talks to whom | People-vs-things interest, one of the largest psychological sex differences (d ≈ 0.93; distributions still overlap ~64%) |
+| Capacity warnings | Silent until pods stop fitting | **Worry** controller warns at 70% of allocatable, and says when it relaxes. `kyvctl calm` folds the extra noise into a short list | Higher average neuroticism (d ≈ 0.39, self-report, large overlap): modelled as earlier vigilance |
+| Scheduling failures | `0/3 nodes are available: 3 Insufficient cpu.` | `We couldn't place shop/api yet: every node is short on CPU. We'll try again as soon as something changes. (0/3 nodes are available: 3 Insufficient cpu.)` | More social, person-directed wording (small effect). Not longer: women and men speak a similar number of words per day |
+| CLI errors | Terse | `kyvctl` explains common errors in a sentence, and after the same command fails three times within a few minutes it suggests stepping back | Small female advantage in emotion recognition (d ≈ 0.19); repetition is the only signal a CLI has |
 | Monitoring | CPU alerts | CPU alerts plus the "accompanying symptoms": latency creep, DNS jitter, slow storage ([deploy/addons/alerts.yaml](deploy/addons/alerts.yaml)) | In heart attacks chest pain is the most common symptom for both sexes, but women more often have accompanying symptoms that get missed |
 
 ## The mosaic control plane
 
-Every woman is a cellular mosaic. Early in development each cell silences one
-of its two X chromosomes at random, and all of that cell's descendants keep
-the choice. Engineers know the same idea as N-version programming: nodes
+Women's tissues are cellular mosaics. Early in development each cell silences
+one of its two X chromosomes at random, and all of that cell's descendants
+keep the choice, so a tissue mixes two cell populations, often in a skewed
+rather than a 50:50 ratio. Engineers know the same idea as N-version programming: nodes
 running different builds do not share every bug.
 
 Each Kyvernetria control-plane image carries both alleles of its component,
@@ -174,7 +175,7 @@ Error from server (Forbidden): ... kyvernetria: let's talk first. Pod shop/api-5
 running and would be cut off without a chance to finish. ...
 
 FailedScheduling: We couldn't place shop/greedy yet: 3 nodes have a taint the pod doesn't tolerate,
-1 node is short on CPU. I'll try again as soon as something changes. (0/4 nodes are available: ...)
+1 node is short on CPU. We'll try again as soon as something changes. (0/4 nodes are available: ...)
 
 Worried: CPU requests on kyv-w-1 reached 100% of allocatable. Nothing is failing yet; I'm telling you early.
 
@@ -221,8 +222,8 @@ These are mapped in [docs/RESEARCH.md](docs/RESEARCH.md) but not built yet:
 different default resource requests (sex differences in pharmacokinetics),
 sustained-load tuning (greater fatigue resistance at submaximal effort), deeper
 health checks (camouflaging), early adoption of alpha APIs with strict label
-conventions (women lead most language change), and a longer support window.
-Log "sniffing" was dropped: the sense-of-smell advantage is trivial.
+conventions (women lead most language change from below), and a longer support window.
+Log "sniffing" was dropped: the sense-of-smell advantage is small to trivial.
 
 ## License
 
