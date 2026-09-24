@@ -73,7 +73,11 @@ func runCalm(ctx context.Context, f cmdutil.Factory, out io.Writer, all bool, si
 	if err != nil {
 		return err
 	}
-	renderCalm(out, Fold(list.Items, time.Now().Add(-since)), top, since)
+	pods, err := client.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	renderCalm(out, Fold(list.Items, time.Now().Add(-since), PodSubjects(pods.Items)), top, since)
 	return nil
 }
 
@@ -87,19 +91,46 @@ type Worry struct {
 	Message   string
 }
 
+// Generated name suffixes and pod-template-hash use this alphabet (no vowels,
+// no 0, 1 or 3), so an ordinary word such as "exporter" is never taken for one.
+const safeChars = `[bcdfghjklmnpqrstvwxz2456789]`
+
 var (
-	deploymentPod = regexp.MustCompile(`^(.+)-[a-z0-9]{8,10}-[a-z0-9]{5}$`)
-	replicaSet    = regexp.MustCompile(`^(.+)-[a-z0-9]{8,10}$`)
-	generatedPod  = regexp.MustCompile(`^(.+)-[a-z0-9]{5}$`)
+	deploymentPod = regexp.MustCompile(`^(.+)-` + safeChars + `{6,10}-` + safeChars + `{5}$`)
+	replicaSet    = regexp.MustCompile(`^(.+)-` + safeChars + `{6,10}$`)
+	generatedPod  = regexp.MustCompile(`^(.+)-` + safeChars + `{5}$`)
 	ordinalPod    = regexp.MustCompile(`^(.+)-[0-9]+$`)
 )
 
+// PodSubjects maps "namespace/pod" to the workload that controls each live
+// pod. Static pods and bare pods map to themselves: kube-apiserver-cp-1 and
+// kube-apiserver-cp-2 are different things to worry about.
+func PodSubjects(pods []v1.Pod) map[string]string {
+	subjects := make(map[string]string, len(pods))
+	for i := range pods {
+		p := &pods[i]
+		key := p.Namespace + "/" + p.Name
+		owner := metav1.GetControllerOf(p)
+		switch {
+		case owner == nil || owner.Kind == "Node":
+			subjects[key] = "pod/" + p.Name
+		case owner.Kind == "ReplicaSet" && p.Labels["pod-template-hash"] != "":
+			subjects[key] = strings.TrimSuffix(owner.Name, "-"+p.Labels["pod-template-hash"]) + " (pods)"
+		default:
+			subjects[key] = owner.Name + " (pods)"
+		}
+	}
+	return subjects
+}
+
 // Subject names what a warning is really about: the workload behind a pod
-// or ReplicaSet rather than one replica.
+// or ReplicaSet rather than one replica. Pods that are gone are recognised by
+// their generated names; StatefulSet ordinals are not guessed, since a static
+// pod named after its node ("...-cp-2") looks the same.
 func Subject(kind, name string) string {
 	switch kind {
 	case "Pod":
-		for _, re := range []*regexp.Regexp{deploymentPod, generatedPod, ordinalPod} {
+		for _, re := range []*regexp.Regexp{deploymentPod, generatedPod} {
 			if m := re.FindStringSubmatch(name); m != nil {
 				return m[1] + " (pods)"
 			}
@@ -112,15 +143,22 @@ func Subject(kind, name string) string {
 	return strings.ToLower(kind) + "/" + name
 }
 
-// Fold groups warnings newer than after, most frequent first.
-func Fold(events []v1.Event, after time.Time) []Worry {
+// Fold groups warnings newer than after, most frequent first. pods, from
+// PodSubjects, names the workload of pods that still exist.
+func Fold(events []v1.Event, after time.Time, pods map[string]string) []Worry {
 	groups := map[string]*Worry{}
 	for _, e := range events {
 		t := eventTime(e)
 		if e.Type != v1.EventTypeWarning || t.Before(after) {
 			continue
 		}
-		subject := Subject(e.InvolvedObject.Kind, e.InvolvedObject.Name)
+		subject, ok := "", false
+		if e.InvolvedObject.Kind == "Pod" {
+			subject, ok = pods[e.Namespace+"/"+e.InvolvedObject.Name]
+		}
+		if !ok {
+			subject = Subject(e.InvolvedObject.Kind, e.InvolvedObject.Name)
+		}
 		key := e.Namespace + "\x00" + subject + "\x00" + e.Reason
 		g, ok := groups[key]
 		if !ok {
