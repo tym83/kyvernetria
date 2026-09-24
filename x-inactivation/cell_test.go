@@ -42,6 +42,9 @@ func TestInactivationIsClonal(t *testing.T) {
 	if err != nil || a != Xp || !first {
 		t.Fatalf("first boot: %s %v %v", a, first, err)
 	}
+	if info, err := os.Stat(filepath.Join(c.Dir, "x-inactivation")); err != nil || info.Mode().Perm() != 0o644 {
+		t.Errorf("choice file is not readable by everyone: %v %v", info, err)
+	}
 	c.Random = func() (string, error) { return Xm, nil }
 	a, first, err = c.Expressed()
 	if err != nil || a != Xp || first {

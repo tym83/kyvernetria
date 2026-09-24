@@ -93,6 +93,11 @@ func (c *Cell) Expressed() (allele string, firstBoot bool, err error) {
 		return "", false, err
 	}
 	defer os.Remove(tmp.Name())
+	// Readable by everyone: which allele a node expresses is not a secret.
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		return "", false, err
+	}
 	if _, err := tmp.WriteString(pick + "\n"); err != nil {
 		_ = tmp.Close()
 		return "", false, err

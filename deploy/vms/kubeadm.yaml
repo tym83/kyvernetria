@@ -1,0 +1,45 @@
+# kubeadm configuration for Kyvernetria on plain VMs.
+#
+# Every node runs a local haproxy on 127.0.0.1:6444 in front of all
+# control-plane apiservers (prepare-node.sh), so the control-plane endpoint is
+# the same on every node and no external load balancer is needed.
+#
+# Replace ADVERTISE_ADDRESS with the first control-plane node's IP and extend
+# certSANs with any address you will reach the API through.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: ADVERTISE_ADDRESS
+nodeRegistration:
+  criSocket: unix:///run/containerd/containerd.sock
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: v1.37.0-kyvernetria.0
+clusterName: kyvernetria
+controlPlaneEndpoint: 127.0.0.1:6444
+# Pick subnets that nothing under the VMs uses. In particular, if the VMs'
+# resolver is a cluster DNS service (as inside Cozystack, 10.96.0.10), a
+# colliding serviceSubnet lets kube-proxy hijack the nodes' own DNS.
+networking:
+  podSubnet: 10.32.0.0/16
+  serviceSubnet: 10.112.0.0/16
+apiServer:
+  certSANs:
+    - 127.0.0.1
+    - ADVERTISE_ADDRESS
+  # x-inactivation keeps each node's allele choice here; all three
+  # components on a node share it, like one X chromosome.
+  extraVolumes: &kyvernetria
+    - name: kyvernetria
+      hostPath: /var/lib/kyvernetria
+      mountPath: /var/lib/kyvernetria
+      pathType: DirectoryOrCreate
+controllerManager:
+  extraVolumes: *kyvernetria
+scheduler:
+  extraVolumes: *kyvernetria
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd

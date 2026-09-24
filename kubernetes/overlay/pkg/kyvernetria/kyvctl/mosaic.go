@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
+	"k8s.io/component-base/version"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -119,7 +120,9 @@ func renderMosaic(out io.Writer, cells []cell) {
 		return
 	}
 	sort.Slice(cells, func(i, j int) bool { return cells[i].node < cells[j].node })
-	newest := ""
+	// kyvctl is built from the Xm tree, so its own version anchors the newer
+	// allele even when every answering node happens to express Xp.
+	newest := version.Get().GitVersion
 	for _, c := range cells {
 		if c.version != "" && (newest == "" || minor(c.version) > minor(newest)) {
 			newest = c.version
@@ -139,6 +142,8 @@ func renderMosaic(out io.Writer, cells []cell) {
 		fmt.Fprintf(out, "%-28s %-6s %-26s %s\n", c.node, c.allele, c.version, note)
 	}
 	switch {
+	case counts["?"] > 0:
+		fmt.Fprintf(out, "\n%d of %d nodes aren't answering, so I can't tell the whole mosaic yet.\n", counts["?"], len(cells))
 	case counts["Xm"] > 0 && counts["Xp"] > 0:
 		fmt.Fprintf(out, "\nMosaic: %d Xm, %d Xp. A bug in either build leaves the other half serving.\n", counts["Xm"], counts["Xp"])
 	case len(cells) == 1:

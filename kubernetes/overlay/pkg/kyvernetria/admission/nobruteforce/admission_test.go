@@ -37,10 +37,17 @@ func deleteAttrs(pod *api.Pod, grace *int64, who string) admission.Attributes {
 func TestValidate(t *testing.T) {
 	zero, thirty := int64(0), int64(30)
 	now := metav1.Now()
-	running := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default"}}
-	terminating := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default", DeletionTimestamp: &now}}
+	onNode := api.PodSpec{NodeName: "worker-1"}
+	running := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default"}, Spec: onNode,
+		Status: api.PodStatus{Phase: api.PodRunning}}
+	terminating := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default", DeletionTimestamp: &now}, Spec: onNode}
 	discussed := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default",
-		Annotations: map[string]string{kyvernetria.DiscussedAnnotation: "true"}}}
+		Annotations: map[string]string{kyvernetria.DiscussedAnnotation: "true"}}, Spec: onNode}
+	// The apiserver forces grace 0 on these itself, even for a plain delete.
+	unscheduled := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default"},
+		Status: api.PodStatus{Phase: api.PodPending}}
+	finished := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default"}, Spec: onNode,
+		Status: api.PodStatus{Phase: api.PodSucceeded}}
 
 	for _, tc := range []struct {
 		name    string
@@ -54,6 +61,8 @@ func TestValidate(t *testing.T) {
 		{"explicit grace", running, &thirty, "alice", true},
 		{"pod already terminating", terminating, &zero, "alice", true},
 		{"discussed first", discussed, &zero, "alice", true},
+		{"pod never scheduled", unscheduled, &zero, "alice", true},
+		{"pod already finished", finished, &zero, "alice", true},
 		{"kubelet finishing a pod", running, &zero, "system:node:worker-1", true},
 		{"pod gc", running, &zero, "system:serviceaccount:kube-system:pod-garbage-collector", true},
 	} {

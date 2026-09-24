@@ -152,6 +152,15 @@ func TestMosaic(t *testing.T) {
 	if !strings.Contains(out.String(), "Mosaic: 2 Xm, 1 Xp") || !strings.Contains(out.String(), "5 restarts") {
 		t.Errorf("unexpected mosaic output:\n%s", out.String())
 	}
+	out.Reset()
+	renderMosaic(&out, []cell{
+		{node: "cp-1", version: "v1.37.0-kyvernetria.0"},
+		{node: "cp-2", version: "v1.37.0-kyvernetria.0"},
+		{node: "cp-3", note: "not answering"},
+	})
+	if !strings.Contains(out.String(), "1 of 3 nodes aren't answering") || strings.Contains(out.String(), "same allele") {
+		t.Errorf("a silent node was mistaken for a uniform mosaic:\n%s", out.String())
+	}
 }
 
 func TestRenderRelationships(t *testing.T) {
@@ -183,5 +192,16 @@ func TestRenderRelationships(t *testing.T) {
 	}
 	if strings.Contains(got, "apigw") {
 		t.Errorf("focus on api matched apigw:\n%s", got)
+	}
+}
+
+func TestKubectlArguments(t *testing.T) {
+	own := []string{"kyvctl", "--kubeconfig", "/tmp/k", "mosaic"}
+	if got := kubectlArguments(own); len(got) != 1 {
+		t.Errorf("own command reached kubectl's plugin lookup: %v", got)
+	}
+	upstream := []string{"kyvctl", "--kubeconfig", "/tmp/k", "get", "pods"}
+	if got := kubectlArguments(upstream); len(got) != len(upstream) {
+		t.Errorf("kubectl command lost its arguments: %v", got)
 	}
 }

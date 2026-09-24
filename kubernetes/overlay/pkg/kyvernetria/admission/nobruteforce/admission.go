@@ -79,7 +79,9 @@ func (p *Plugin) Validate(_ context.Context, a admission.Attributes, _ admission
 	if !ok {
 		return nil
 	}
-	if pod.DeletionTimestamp != nil || pod.Annotations[kyvernetria.DiscussedAnnotation] == "true" {
+	// The apiserver itself sets grace period 0 for pods that never started
+	// (not scheduled) or already finished; nothing is cut off there.
+	if !isRunning(pod) || pod.DeletionTimestamp != nil || pod.Annotations[kyvernetria.DiscussedAnnotation] == "true" {
 		return nil
 	}
 	return admission.NewForbidden(a, fmt.Errorf(
@@ -101,4 +103,8 @@ func isClusterComponent(u user.Info) bool {
 		return true
 	}
 	return false
+}
+
+func isRunning(pod *api.Pod) bool {
+	return pod.Spec.NodeName != "" && pod.Status.Phase != api.PodSucceeded && pod.Status.Phase != api.PodFailed
 }

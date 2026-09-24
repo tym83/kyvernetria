@@ -29,6 +29,24 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
+// ownCommands are added after kubectl builds its tree, so kubectl must not
+// mistake them for plugins (it looks plugins up while it is being built).
+var ownCommands = map[string]bool{
+	"remember": true, "relationships": true, "rels": true, "exclude": true,
+	"include": true, "calm": true, "diagnose": true, "mosaic": true,
+}
+
+// kubectlArguments hides the command line from kubectl's plugin lookup when
+// it invokes one of kyvctl's own commands.
+func kubectlArguments(args []string) []string {
+	for _, a := range args[1:] {
+		if ownCommands[a] {
+			return args[:1]
+		}
+	}
+	return args
+}
+
 // NewCommand builds the kyvctl root command.
 func NewCommand(streams genericiooptions.IOStreams) *cobra.Command {
 	configFlags := genericclioptions.NewConfigFlags(true).
@@ -36,7 +54,7 @@ func NewCommand(streams genericiooptions.IOStreams) *cobra.Command {
 		WithWarningPrinter(streams)
 	root := kubectlcmd.NewDefaultKubectlCommandWithArgs(kubectlcmd.KubectlOptions{
 		PluginHandler: kubectlcmd.NewDefaultPluginHandler(plugin.ValidPluginFilenamePrefixes),
-		Arguments:     os.Args,
+		Arguments:     kubectlArguments(os.Args),
 		ConfigFlags:   configFlags,
 		IOStreams:     streams,
 	})

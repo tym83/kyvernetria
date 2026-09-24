@@ -138,7 +138,7 @@ func renderAutoimmune(out io.Writer, rejections []Rejection) {
 			selfCount++
 		}
 	}
-	fmt.Fprintf(out, "The immune system is rejecting %d workloads; %d look like your own tissue.\n", len(rejections), selfCount)
+	fmt.Fprintf(out, "The immune system is rejecting %s; %d look like your own tissue.\n", plural(len(rejections), "workload"), selfCount)
 	fixes := map[string]bool{}
 	for _, r := range rejections {
 		verdict := "foreign?"
@@ -159,4 +159,11 @@ func renderAutoimmune(out io.Writer, rejections []Rejection) {
 			fmt.Fprintf(out, "  kyvctl label namespace %s %s=true\n", ns, kyvernetria.SelfLabel)
 		}
 	}
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }

@@ -5,6 +5,7 @@
 #   hack/build.sh binaries   # fetch, patch and compile (no Docker needed)
 #   hack/build.sh images     # component images + kind node image (Docker)
 #   hack/build.sh all        # both
+#   hack/build.sh release    # binaries + images for plain VMs (deploy/vms)
 #
 # Environment:
 #   XM, XP     upstream tags of the two alleles   (default v1.37.0, v1.36.4)
@@ -82,30 +83,55 @@ binaries() {
   log "binaries in ${OUT}"
 }
 
-images() {
-  local bin="${OUT}/linux-${ARCH}" ctx="${WORK}/images" server="${WORK}/tarball/kubernetes"
-  rm -rf "${ctx}" "${WORK}/tarball"
-  mkdir -p "${ctx}" "${server}/server/bin"
+CRANE="${CRANE:-$(command -v crane || echo "$(go env GOPATH)/bin/crane")}"
 
+# layer_image appends one layer of files to an upstream image, for the
+# target platform, and writes a docker archive tagged $tag. No Docker daemon
+# is involved, so any host can build images for any architecture.
+layer_image() { # base tag out dir-with-usr
+  local base="$1" tag="$2" out="$3" dir="$4"
+  tar --uid 0 --gid 0 --numeric-owner -C "${dir}" -cf "${dir}.layer.tar" usr
+  "${CRANE}" append --platform "linux/${ARCH}" -b "${base}" -f "${dir}.layer.tar" -t "${tag}" -o "${out}" >/dev/null
+}
+
+# component_images saves the control-plane images (both alleles behind
+# x-inactivation) and kube-proxy (Xp) as docker archives into $1, tagged
+# registry.k8s.io/<component>$2:<version>.
+component_images() { # dest name-suffix
+  local dest="$1" suffix="$2" bin="${OUT}/linux-${ARCH}" ctx="${WORK}/images-${ARCH}"
+  [ -x "${CRANE}" ] || go install github.com/google/go-containerregistry/cmd/crane@latest
+  rm -rf "${ctx}"
+  mkdir -p "${ctx}" "${dest}"
   for c in kube-apiserver kube-controller-manager kube-scheduler; do
     log "image ${c}: both alleles behind x-inactivation"
-    mkdir -p "${ctx}/${c}"
-    cp "${bin}/${c}.Xm" "${bin}/${c}.Xp" "${ctx}/${c}/"
-    cp "${bin}/x-inactivation" "${ctx}/${c}/${c}"
-    cat > "${ctx}/${c}/Dockerfile" <<EOF
-FROM registry.k8s.io/${c}:${XM}
-COPY ${c} ${c}.Xm ${c}.Xp /usr/local/bin/
-EOF
-    docker build --quiet --platform "linux/${ARCH}" -t "registry.k8s.io/${c}-${ARCH}:${VERSION}" "${ctx}/${c}" >/dev/null
-    docker save "registry.k8s.io/${c}-${ARCH}:${VERSION}" -o "${server}/server/bin/${c}.tar"
+    mkdir -p "${ctx}/${c}/usr/local/bin"
+    cp "${bin}/${c}.Xm" "${bin}/${c}.Xp" "${ctx}/${c}/usr/local/bin/"
+    cp "${bin}/x-inactivation" "${ctx}/${c}/usr/local/bin/${c}"
+    layer_image "registry.k8s.io/${c}:${XM}" "registry.k8s.io/${c}${suffix}:${VERSION}" "${dest}/${c}.tar" "${ctx}/${c}"
   done
-
   log "image kube-proxy (Xp: node components must not be newer than the apiserver)"
-  mkdir -p "${ctx}/kube-proxy"
-  cp "${bin}/kube-proxy" "${ctx}/kube-proxy/"
-  printf 'FROM registry.k8s.io/kube-proxy:%s\nCOPY kube-proxy /usr/local/bin/kube-proxy\n' "${XP}" > "${ctx}/kube-proxy/Dockerfile"
-  docker build --quiet --platform "linux/${ARCH}" -t "registry.k8s.io/kube-proxy-${ARCH}:${VERSION}" "${ctx}/kube-proxy" >/dev/null
-  docker save "registry.k8s.io/kube-proxy-${ARCH}:${VERSION}" -o "${server}/server/bin/kube-proxy.tar"
+  mkdir -p "${ctx}/kube-proxy/usr/local/bin"
+  cp "${bin}/kube-proxy" "${ctx}/kube-proxy/usr/local/bin/"
+  layer_image "registry.k8s.io/kube-proxy:${XP}" "registry.k8s.io/kube-proxy${suffix}:${VERSION}" "${dest}/kube-proxy.tar" "${ctx}/kube-proxy"
+}
+
+# release lays out what deploy/vms/install-kyvernetria.sh expects.
+release() {
+  local rel="${OUT}/release-${ARCH}" bin="${OUT}/linux-${ARCH}"
+  rm -rf "${rel}"
+  mkdir -p "${rel}/bin"
+  component_images "${rel}/images" ""
+  cp "${bin}/kubelet" "${bin}/kubeadm" "${bin}/kubectl" "${bin}/kyvctl" "${rel}/bin/"
+  cp "${root}/deploy/vms/install-kyvernetria.sh" "${root}/deploy/vms/kubeadm.yaml" "${rel}/"
+  log "release in ${rel}"
+}
+
+images() {
+  local server="${WORK}/tarball/kubernetes" ctx="${WORK}/images-${ARCH}" bin="${OUT}/linux-${ARCH}"
+  rm -rf "${WORK}/tarball"
+  mkdir -p "${server}/server/bin"
+  # kind strips the -<arch> suffix when it imports these.
+  component_images "${server}/server/bin" "-${ARCH}"
 
   cp "${bin}/kubeadm" "${bin}/kubelet" "${bin}/kubectl" "${server}/server/bin/"
   echo "${VERSION}" > "${server}/version"
@@ -123,6 +149,7 @@ EOF
 case "${1:-all}" in
   binaries) binaries ;;
   images) images ;;
+  release) release ;;
   all) binaries; images ;;
-  *) echo "usage: $0 [binaries|images|all]" >&2; exit 2 ;;
+  *) echo "usage: $0 [binaries|images|release|all]" >&2; exit 2 ;;
 esac
