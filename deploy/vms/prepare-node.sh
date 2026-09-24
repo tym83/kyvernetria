@@ -180,7 +180,9 @@ backend kube-apiservers
   timeout server 1h
   option httpchk GET /readyz
   http-check expect status 200
-  default-server check check-ssl verify none inter 3s fall 3 rise 2
+  # Fast enough to drain an apiserver within its shutdown delay (see
+  # kubeadm.yaml: shutdown-delay-duration).
+  default-server check check-ssl verify none inter 1s fall 2 rise 2
 EOF
   i=1
   for ip in "$@"; do

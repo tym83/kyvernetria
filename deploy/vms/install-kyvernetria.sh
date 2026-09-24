@@ -3,7 +3,44 @@
 # prepare-node.sh. Expects the release in the current directory:
 #   bin/{kubelet,kubeadm,kubectl,kyvctl}   images/*.tar
 # Safe to run again.
+#
+#   install-kyvernetria.sh                full install (binaries, kubelet unit, images)
+#   install-kyvernetria.sh --images-only  import and pin the images only; used
+#                                         during an upgrade, when kubelet must not
+#                                         change yet (docs/OPERATIONS.md)
 set -euo pipefail
+
+images_only=false
+case "${1:-}" in
+  --images-only) images_only=true ;;
+  "") ;;
+  *) echo "usage: $0 [--images-only]" >&2; exit 2 ;;
+esac
+
+import_images() {
+  # The images are imported, not pulled, and exist nowhere else. Pin them so
+  # kubelet's image garbage collection never removes them.
+  for image in images/*.tar; do
+    [ -e "${image}" ] || continue
+    ctr --namespace k8s.io images import --local "${image}" >/dev/null
+    tar -xOf "${image}" manifest.json | grep -oE '"RepoTags":\["[^"]+"' | cut -d'"' -f4 |
+      while read -r ref; do
+        ctr --namespace k8s.io images label "${ref}" io.cri-containerd.pinned=pinned >/dev/null
+        echo "imported and pinned ${ref}"
+      done
+  done
+}
+
+if "${images_only}"; then
+  import_images
+  exit 0
+fi
+
+# Until this node's kube-apiserver is up, a crash loop means the install is
+# wrong, not the allele: switching alleles would not help. Suspend escapes;
+# remove the flag once kubeadm init/join has finished.
+mkdir -p /var/lib/kyvernetria
+touch /var/lib/kyvernetria/upgrading
 
 install -m 0755 bin/kubelet bin/kubeadm bin/kubectl bin/kyvctl /usr/local/bin/
 
@@ -36,15 +73,6 @@ EOF
 systemctl daemon-reload
 systemctl enable kubelet >/dev/null
 
-# The images are imported, not pulled, and exist nowhere else. Pin them so
-# kubelet's image garbage collection never removes them.
-for image in images/*.tar; do
-  [ -e "${image}" ] || continue
-  ctr --namespace k8s.io images import --local "${image}" >/dev/null
-  tar -xOf "${image}" manifest.json | grep -oE '"RepoTags":\["[^"]+"' | cut -d'"' -f4 |
-    while read -r ref; do
-      ctr --namespace k8s.io images label "${ref}" io.cri-containerd.pinned=pinned >/dev/null
-      echo "imported and pinned ${ref}"
-    done
-done
+import_images
 echo "installed: $(kubelet --version), kubeadm $(kubeadm version -o short)"
+echo "escapes are suspended until you run, after kubeadm init/join: rm /var/lib/kyvernetria/upgrading"

@@ -44,8 +44,21 @@ apiServer:
     # (kubeadm's serving certificates carry kubernetes.default.svc, which the
     # proxy checks), and authenticated with kubeadm's front-proxy client
     # certificate (--proxy-client-cert-file, already set by kubeadm).
+    #
+    # The flag needs the UnknownVersionInteroperabilityProxy gate on at the
+    # emulated version. It is on from 1.36; for a release whose Xp minor is
+    # older, also pass feature-gates=UnknownVersionInteroperabilityProxy=true,
+    # or kube-apiserver refuses to start.
     - name: peer-ca-file
       value: /etc/kubernetes/pki/ca.crt
+    # Restart without dropping requests: on SIGTERM the apiserver reports
+    # not-ready at once but keeps serving for 15 s, long enough for the
+    # per-node haproxy (checks every second, two failures) to stop sending it
+    # new requests.
+    - name: shutdown-delay-duration
+      value: 15s
+    - name: shutdown-send-retry-after
+      value: "true"
   # x-inactivation keeps the node's kube-apiserver allele here. The
   # controller manager and scheduler always run Xp and need no state.
   extraVolumes:
