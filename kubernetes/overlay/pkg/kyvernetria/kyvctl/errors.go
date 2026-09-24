@@ -214,9 +214,16 @@ func Comfort(count int, args []string) string {
 	}
 	hint := "`kyvctl calm` summarizes what's going wrong around you"
 	// Only positional arguments name objects; a flag value such as
-	// --kubeconfig /path/to/file must never be mistaken for one.
+	// --kubeconfig /path/to/file must never be mistaken for one, nor must the
+	// command after "--" in exec, run or debug.
+	for i, a := range args {
+		if a == "--" {
+			args = args[:i]
+			break
+		}
+	}
 	for _, a := range positionals(args, globalFlags()) {
-		if strings.Contains(a, "/") {
+		if strings.Contains(a, "/") && !strings.HasPrefix(a, "/") && !strings.HasPrefix(a, ".") {
 			hint = fmt.Sprintf("`kyvctl remember %s` shows what has been happening to it", a)
 			break
 		}

@@ -155,7 +155,11 @@ func TestFold(t *testing.T) {
 		warning("shop", "Node", "worker-2", "Worried", 1, now.Add(-10*time.Minute)),
 		warning("shop", "Pod", "db-1", "Unhealthy", 2, now.Add(-2*time.Hour)),
 	}
-	worries := Fold(events, now.Add(-time.Hour))
+	pods := PodSubjects([]v1.Pod{
+		ownedPod("shop", "db-0", "StatefulSet", "db", ""),
+		ownedPod("shop", "db-1", "StatefulSet", "db", ""),
+	})
+	worries := Fold(events, now.Add(-time.Hour), pods)
 	if len(worries) != 3 {
 		t.Fatalf("got %d groups: %+v", len(worries), worries)
 	}
@@ -169,6 +173,51 @@ func TestFold(t *testing.T) {
 	renderCalm(&out, worries, 2, time.Hour)
 	if !strings.Contains(out.String(), "46 warnings in the last 1h0m0s come down to 3 things. The 2 that deserve attention first") {
 		t.Errorf("unexpected calm output:\n%s", out.String())
+	}
+}
+
+func ownedPod(ns, name, kind, owner, hash string) v1.Pod {
+	p := v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name}}
+	if hash != "" {
+		p.Labels = map[string]string{"pod-template-hash": hash}
+	}
+	if kind != "" {
+		controller := true
+		p.OwnerReferences = []metav1.OwnerReference{{Kind: kind, Name: owner, Controller: &controller}}
+	}
+	return p
+}
+
+func TestCalmSubjects(t *testing.T) {
+	pods := PodSubjects([]v1.Pod{
+		ownedPod("kube-system", "kube-apiserver-kyv-cp-1", "Node", "kyv-cp-1", ""),
+		ownedPod("kube-system", "kube-apiserver-kyv-cp-2", "Node", "kyv-cp-2", ""),
+		ownedPod("monitoring", "stack-prometheus-node-exporter-j7k2p", "DaemonSet", "stack-prometheus-node-exporter", ""),
+		ownedPod("shop", "api-7dc849f4f8-7q9hv", "ReplicaSet", "api-7dc849f4f8", "7dc849f4f8"),
+		ownedPod("shop", "debug", "", "", ""),
+	})
+	for key, want := range map[string]string{
+		"kube-system/kube-apiserver-kyv-cp-1":             "pod/kube-apiserver-kyv-cp-1",
+		"kube-system/kube-apiserver-kyv-cp-2":             "pod/kube-apiserver-kyv-cp-2",
+		"monitoring/stack-prometheus-node-exporter-j7k2p": "stack-prometheus-node-exporter (pods)",
+		"shop/api-7dc849f4f8-7q9hv":                       "api (pods)",
+		"shop/debug":                                      "pod/debug",
+	} {
+		if got := pods[key]; got != want {
+			t.Errorf("PodSubjects[%s] = %q, want %q", key, got, want)
+		}
+	}
+	// Pods that are gone fall back to their names.
+	for name, want := range map[string]string{
+		"api-7dc849f4f8-7q9hv":               "api (pods)",
+		"agent-x2kq4":                        "agent (pods)",
+		"prometheus-node-exporter":           "pod/prometheus-node-exporter",
+		"kube-apiserver-kyv-cp-2":            "pod/kube-apiserver-kyv-cp-2",
+		"stack-prometheus-node-exporter-abc": "pod/stack-prometheus-node-exporter-abc",
+	} {
+		if got := Subject("Pod", name); got != want {
+			t.Errorf("Subject(Pod, %s) = %q, want %q", name, got, want)
+		}
 	}
 }
 
@@ -386,8 +435,13 @@ func TestComfortIgnoresFlagValues(t *testing.T) {
 	if c := Comfort(3, args); !strings.Contains(c, "kyvctl remember deploy/nope") {
 		t.Errorf("comfort pointed at a flag value: %q", c)
 	}
-	args = []string{"--kubeconfig=/home/me/.kube/config", "get", "pods"}
-	if c := Comfort(3, args); strings.Contains(c, "remember") {
-		t.Errorf("comfort invented an object: %q", c)
+	for _, args := range [][]string{
+		{"--kubeconfig=/home/me/.kube/config", "get", "pods"},
+		{"-n", "kube-system", "exec", "etcd-cp-1", "--", "sh", "-c", "etcdctl --cacert=/etc/pki/ca.crt get /registry"},
+		{"apply", "-f", "./manifests/app.yaml"},
+	} {
+		if c := Comfort(3, args); strings.Contains(c, "remember") {
+			t.Errorf("comfort invented an object from %v: %q", args, c)
+		}
 	}
 }

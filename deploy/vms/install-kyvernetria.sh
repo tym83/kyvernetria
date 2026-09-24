@@ -8,13 +8,31 @@
 #   install-kyvernetria.sh --images-only  import and pin the images only; used
 #                                         during an upgrade, when kubelet must not
 #                                         change yet (docs/OPERATIONS.md)
+#   install-kyvernetria.sh --joined       run once kubeadm init/join has finished:
+#                                         points a control-plane kubelet at the
+#                                         local haproxy and lets escapes resume
 set -euo pipefail
 
 images_only=false
 case "${1:-}" in
   --images-only) images_only=true ;;
+  --joined)
+    # kubeadm points a control-plane node's kubelet at that node's own
+    # apiserver. While it crash-loops, as it does before an escape, the node
+    # goes NotReady and its pods are evicted. The local haproxy reaches all
+    # three apiservers instead.
+    if [ -e /etc/kubernetes/manifests/kube-apiserver.yaml ] &&
+      ! grep -q 'server: https://127.0.0.1:6444$' /etc/kubernetes/kubelet.conf; then
+      sed -i -E 's#^( *server: ).*#\1https://127.0.0.1:6444#' /etc/kubernetes/kubelet.conf
+      systemctl restart kubelet
+      echo "kubelet now reaches the apiservers through the local haproxy"
+    fi
+    rm -f /var/lib/kyvernetria/upgrading
+    echo "escapes are enabled"
+    exit 0
+    ;;
   "") ;;
-  *) echo "usage: $0 [--images-only]" >&2; exit 2 ;;
+  *) echo "usage: $0 [--images-only | --joined]" >&2; exit 2 ;;
 esac
 
 import_images() {
@@ -75,4 +93,4 @@ systemctl enable kubelet >/dev/null
 
 import_images
 echo "installed: $(kubelet --version), kubeadm $(kubeadm version -o short)"
-echo "escapes are suspended until you run, after kubeadm init/join: rm /var/lib/kyvernetria/upgrading"
+echo "escapes are suspended until you run, after kubeadm init/join: $0 --joined"

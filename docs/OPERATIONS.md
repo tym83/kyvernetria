@@ -143,8 +143,8 @@ Old release: A = (Xm 1.37, Xp 1.36). New release: B = (Xm 1.38, Xp 1.37).
    restart kubelet, one node at a time. Point kube-proxy at B:
    `kubectl -n kube-system set image daemonset/kube-proxy kube-proxy=<B's kube-proxy image>`.
    Set `kubernetesVersion` in the `kubeadm-config` ConfigMap to B's version
-   for future joins. Last, remove `/var/lib/kyvernetria/upgrading` on every
-   node (the installer sets it again).
+   for future joins. Last, run `install-kyvernetria.sh --joined` on every
+   node (the installer sets the upgrading flag again).
 
 Steps 2 to 6 edit static pod manifests directly. `kubeadm upgrade` would
 replace all three components on a node at once, which is the move this
@@ -183,8 +183,18 @@ the end of the delay, and clients reconnect.
 `install-kyvernetria.sh` creates `/var/lib/kyvernetria/upgrading`, which
 suspends escapes. A misconfigured install crash-loops kube-apiserver on both
 alleles, and without the flag the node would escape to the other allele for
-no benefit (seen in testing). Remove the flag once `kubeadm init` or
-`kubeadm join` has finished on the node.
+no benefit (seen in testing). Once `kubeadm init` or `kubeadm join` has
+finished on the node, run `install-kyvernetria.sh --joined`, which removes
+the flag.
+
+On control-plane nodes `--joined` also points kubelet at the local haproxy
+(`127.0.0.1:6444`). kubeadm writes the node's own apiserver into
+`/etc/kubernetes/kubelet.conf`, and this cannot be turned off
+(`ControlPlaneKubeletLocalMode` went GA, locked on, in 1.35). With that
+endpoint, an apiserver crash loop, which is exactly what precedes an escape,
+takes the node's kubelet off the cluster: the node goes NotReady and its
+pods are evicted, although two apiservers are still serving (seen in
+testing). Through haproxy, the node stays Ready throughout.
 
 ## Events are kept for 30 days
 
