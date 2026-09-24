@@ -17,7 +17,8 @@ limitations under the License.
 // Package worry raises a warning before a node is full, not after.
 //
 // Models: higher average neuroticism (Costa et al. 2001; Weisberg et al.
-// 2011), i.e. more sensitivity to potential threats. Upstream Kubernetes is
+// 2011) (d ≈ 0.39, self-report, large overlap), modelled as earlier
+// vigilance. Upstream Kubernetes is
 // silent until pods stop fitting; the worry controller speaks up when a
 // node's requests cross a threshold, and says so again when it relaxes.
 // Its downside, more alerts, is what `kyvctl calm` is for.

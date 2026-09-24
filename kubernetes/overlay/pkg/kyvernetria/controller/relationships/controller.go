@@ -17,8 +17,9 @@ limitations under the License.
 // Package relationships makes the links between services a first-class
 // object of the cluster.
 //
-// Models: the largest well-replicated sex difference in interests,
-// people-orientation versus things-orientation (Su, Rounds & Armstrong 2009).
+// Models: one of the largest psychological sex differences,
+// people- versus things-orientation in interests (d ≈ 0.93; Su, Rounds &
+// Armstrong 2009).
 // Upstream Kubernetes is built around things: pods are cattle. Kyvernetria
 // keeps the things, and adds the relationships between them to the API:
 // `kubectl get relationships`.

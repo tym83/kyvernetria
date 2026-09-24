@@ -17,12 +17,12 @@ limitations under the License.
 // Package humanize turns terse component messages into sentences addressed
 // to a person.
 //
-// Models: a small average female advantage in verbal fluency and more
-// social, person-directed word use (pronouns, "we", "you"; Newman et al.
-// 2008). It deliberately does not make messages longer than necessary:
-// women and men speak a similar number of words per day (Mehl et al. 2007,
-// replicated at larger scale in 2025). The original upstream text is
-// kept in parentheses so that nothing grepping for it breaks.
+// Models: more social, person-directed word use (pronouns, "we", "you"),
+// a small effect (Newman et al. 2008). It deliberately does not make
+// messages longer than necessary: women and men speak a similar number of
+// words per day (Mehl et al. 2007; a larger 2025 replication found no
+// conclusive overall difference). The original upstream text is kept in
+// parentheses so that nothing grepping for it breaks.
 package humanize
 
 import (
