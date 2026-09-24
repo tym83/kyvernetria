@@ -18,6 +18,7 @@ package kyvctl
 
 import (
 	"bytes"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -26,6 +27,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/cli-runtime/pkg/genericiooptions"
 )
 
 func TestExplain(t *testing.T) {
@@ -195,13 +197,38 @@ func TestRenderRelationships(t *testing.T) {
 	}
 }
 
-func TestKubectlArguments(t *testing.T) {
-	own := []string{"kyvctl", "--kubeconfig", "/tmp/k", "mosaic"}
-	if got := kubectlArguments(own); len(got) != 1 {
-		t.Errorf("own command reached kubectl's plugin lookup: %v", got)
+func TestInvokesOwnCommand(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"kyvctl", "mosaic"}, true},
+		{[]string{"kyvctl", "--kubeconfig", "/tmp/k", "mosaic"}, true},
+		{[]string{"kyvctl", "--kubeconfig=/tmp/k", "-n", "shop", "remember", "deploy/api"}, true},
+		{[]string{"kyvctl", "-nshop", "calm", "--top", "3"}, true},
+		{[]string{"kyvctl", "-v", "4", "diagnose", "autoimmune"}, true},
+		{[]string{"kyvctl", "--insecure-skip-tls-verify", "calm"}, true},
+		{[]string{"kyvctl", "get", "pods", "calm"}, false},
+		{[]string{"kyvctl", "-n", "diagnose", "get", "po"}, false},
+		{[]string{"kyvctl", "--namespace", "calm", "logs", "api"}, false},
+		{[]string{"kyvctl", "logs", "remember"}, false},
+		{[]string{"kyvctl", "get", "pods"}, false},
+		{[]string{"kyvctl"}, false},
+	} {
+		if got := invokesOwnCommand(tc.args); got != tc.want {
+			t.Errorf("invokesOwnCommand(%v) = %v, want %v", tc.args, got, tc.want)
+		}
 	}
-	upstream := []string{"kyvctl", "--kubeconfig", "/tmp/k", "get", "pods"}
-	if got := kubectlArguments(upstream); len(got) != len(upstream) {
-		t.Errorf("kubectl command lost its arguments: %v", got)
+}
+
+func TestOwnCommandKeepsItsArguments(t *testing.T) {
+	root := newCommand(genericiooptions.IOStreams{In: strings.NewReader(""), Out: io.Discard, ErrOut: io.Discard},
+		[]string{"kyvctl", "-n", "shop", "calm", "--top", "3"})
+	c, rest, err := root.Find([]string{"-n", "shop", "calm", "--top", "3"})
+	if err != nil || c.Name() != "calm" {
+		t.Fatalf("calm not found: %v %v", c, err)
+	}
+	if len(rest) == 0 {
+		t.Error("arguments were dropped")
 	}
 }
