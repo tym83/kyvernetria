@@ -4,6 +4,7 @@
 # upstream files).
 #
 #   hack/apply.sh [--reset] <kubernetes-checkout>
+#   hack/apply.sh --verify <kubernetes-checkout>
 #
 # Idempotent: after every patch has applied, a marker in the checkout's git
 # directory records a hash of kubernetes/overlay and kubernetes/patches and
@@ -13,15 +14,20 @@
 # `git reset --hard && git clean -fd`, discarding local changes in the tree,
 # so it is only for scratch trees (hack/build.sh passes it for trees under
 # WORK). Without --reset a tree that is not clean is refused.
+#
+# --verify exits 0 only if the tree is exactly upstream plus this overlay
+# and patch series, with nothing changed since; hack/build.sh uses it to
+# decide what to stamp as the binaries' gitTreeState.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 reset=false
-if [ "${1:-}" = "--reset" ]; then
-  reset=true
-  shift
-fi
-tree="${1:?usage: $0 [--reset] <kubernetes-checkout>}"
+verify=false
+case "${1:-}" in
+  --reset) reset=true; shift ;;
+  --verify) verify=true; shift ;;
+esac
+tree="${1:?usage: $0 [--reset|--verify] <kubernetes-checkout>}"
 git -C "${tree}" rev-parse --git-dir >/dev/null
 
 sha256() {
@@ -55,7 +61,13 @@ marker="$(git -C "${tree}" rev-parse --absolute-git-dir)/kyvernetria-applied"
 want="$(inputs_hash) $(git -C "${tree}" rev-parse HEAD)"
 describe="$(git -C "${tree}" describe --tags 2>/dev/null || echo "${tree}")"
 
-if [ -f "${marker}" ] && [ "$(head -n1 "${marker}")" = "${want}" ]; then
+if "${verify}"; then
+  [ -f "${marker}" ] && [ "$(sed -n 1p "${marker}")" = "${want}" ] &&
+    [ "$(sed -n 2p "${marker}")" = "$(worktree_id)" ]
+  exit
+fi
+
+if [ -f "${marker}" ] && [ "$(sed -n 1p "${marker}")" = "${want}" ]; then
   echo "Kyvernetria already applied to ${describe}"
   exit 0
 fi
