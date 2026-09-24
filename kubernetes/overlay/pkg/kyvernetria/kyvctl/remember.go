@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	"k8s.io/client-go/kubernetes"
@@ -97,14 +99,19 @@ type story struct {
 	events []v1.Event
 }
 
-// collectStory gathers events for the object and its descendants. Pods and
-// ReplicaSets that are already gone are recognized by name prefix, because
-// their UIDs are gone with them.
+// pageSize bounds each list request; long histories are paged.
+const pageSize = 500
+
+// collectStory gathers events for the object and its descendants. Live
+// descendants are recognized by owner UID; pods and ReplicaSets that are
+// already gone are recognized by the generated names their controller
+// gives them (the same patterns as calm), because their UIDs are gone with
+// them.
 func collectStory(ctx context.Context, client kubernetes.Interface, ns, kind, name string) (*story, error) {
 	s := &story{title: fmt.Sprintf("%s %s/%s", kind, ns, name)}
 	uids := map[types.UID]bool{}
-	prefixes := []string{}
 	apps := client.AppsV1()
+	var descendantKinds []string // event kinds that may concern a descendant
 	switch kind {
 	case "Deployment":
 		d, err := apps.Deployments(ns).Get(ctx, name, metav1.GetOptions{})
@@ -113,22 +120,22 @@ func collectStory(ctx context.Context, client kubernetes.Interface, ns, kind, na
 		}
 		uids[d.UID] = true
 		s.homes = placement.Decode(d.Annotations)
-		prefixes = append(prefixes, name+"-")
+		descendantKinds = []string{"ReplicaSet", "Pod"}
 	case "StatefulSet":
 		st, err := apps.StatefulSets(ns).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
 		uids[st.UID] = true
-		s.homes = placement.Decode(st.Annotations)
-		prefixes = append(prefixes, name+"-")
+		s.homes = ordinalHomes(name, placement.DecodeOrdinals(st.Annotations))
+		descendantKinds = []string{"Pod"}
 	case "DaemonSet":
 		d, err := apps.DaemonSets(ns).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
 		uids[d.UID] = true
-		prefixes = append(prefixes, name+"-")
+		descendantKinds = []string{"Pod"}
 	case "ReplicaSet":
 		rs, err := apps.ReplicaSets(ns).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
@@ -136,33 +143,138 @@ func collectStory(ctx context.Context, client kubernetes.Interface, ns, kind, na
 		}
 		uids[rs.UID] = true
 		s.homes = placement.Decode(rs.Annotations)
-		prefixes = append(prefixes, name+"-")
+		descendantKinds = []string{"Pod"}
 	case "Node":
 		ns = metav1.NamespaceAll
 		s.title = "Node " + name
 	}
+	if len(descendantKinds) > 0 {
+		if err := addLiveDescendants(ctx, client, ns, kind, uids); err != nil {
+			return nil, err
+		}
+	}
 
-	list, err := client.CoreV1().Events(ns).List(ctx, metav1.ListOptions{})
+	own := fields.Set{"involvedObject.kind": kind, "involvedObject.name": name}.AsSelector().String()
+	err := eachEvent(ctx, client, ns, own, func(e v1.Event) {
+		if e.InvolvedObject.Kind == kind && e.InvolvedObject.Name == name {
+			s.events = append(s.events, e)
+		}
+	})
 	if err != nil {
 		return nil, err
 	}
-	for _, e := range list.Items {
-		o := e.InvolvedObject
-		if uids[o.UID] || (o.Kind == kind && o.Name == name) || hasAnyPrefix(o.Name, prefixes) && (o.Kind == "Pod" || o.Kind == "ReplicaSet") {
-			s.events = append(s.events, e)
+	for _, dk := range descendantKinds {
+		sel := fields.OneTermEqualSelector("involvedObject.kind", dk).String()
+		err := eachEvent(ctx, client, ns, sel, func(e v1.Event) {
+			o := e.InvolvedObject
+			if o.Kind == dk && (uids[o.UID] || Descends(kind, name, o.Kind, o.Name)) {
+				s.events = append(s.events, e)
+			}
+		})
+		if err != nil {
+			return nil, err
 		}
 	}
 	sort.SliceStable(s.events, func(i, j int) bool { return eventTime(s.events[i]).Before(eventTime(s.events[j])) })
 	return s, nil
 }
 
-func hasAnyPrefix(s string, prefixes []string) bool {
-	for _, p := range prefixes {
-		if strings.HasPrefix(s, p) {
-			return true
+// addLiveDescendants adds the UIDs of the ReplicaSets and pods the object
+// owns, directly or through its ReplicaSets.
+func addLiveDescendants(ctx context.Context, client kubernetes.Interface, ns, kind string, uids map[types.UID]bool) error {
+	owned := func(refs []metav1.OwnerReference) bool {
+		for _, r := range refs {
+			if uids[r.UID] {
+				return true
+			}
+		}
+		return false
+	}
+	if kind == "Deployment" {
+		opts := metav1.ListOptions{Limit: pageSize}
+		for {
+			list, err := client.AppsV1().ReplicaSets(ns).List(ctx, opts)
+			if err != nil {
+				return err
+			}
+			for _, rs := range list.Items {
+				if owned(rs.OwnerReferences) {
+					uids[rs.UID] = true
+				}
+			}
+			if opts.Continue = list.Continue; opts.Continue == "" {
+				break
+			}
 		}
 	}
+	opts := metav1.ListOptions{Limit: pageSize}
+	for {
+		list, err := client.CoreV1().Pods(ns).List(ctx, opts)
+		if err != nil {
+			return err
+		}
+		for _, pod := range list.Items {
+			if owned(pod.OwnerReferences) {
+				uids[pod.UID] = true
+			}
+		}
+		if opts.Continue = list.Continue; opts.Continue == "" {
+			return nil
+		}
+	}
+}
+
+// eachEvent pages through the events matching fieldSelector.
+func eachEvent(ctx context.Context, client kubernetes.Interface, ns, fieldSelector string, fn func(v1.Event)) error {
+	opts := metav1.ListOptions{FieldSelector: fieldSelector, Limit: pageSize}
+	for {
+		list, err := client.CoreV1().Events(ns).List(ctx, opts)
+		if err != nil {
+			return err
+		}
+		for _, e := range list.Items {
+			fn(e)
+		}
+		if opts.Continue = list.Continue; opts.Continue == "" {
+			return nil
+		}
+	}
+}
+
+// Descends reports whether an object named objName of kind objKind carries
+// the name its controller would generate as a descendant of kind/name:
+// deploy api -> ReplicaSet api-7f9c8d6b5 -> Pod api-7f9c8d6b5-x2kq4,
+// sts db -> Pod db-0, ds agent / rs api-7f9c8d6b5 -> Pod <name>-x2kq4.
+// A plain prefix is not enough: api-gateway's pods are not api's.
+func Descends(kind, name, objKind, objName string) bool {
+	match := func(re *regexp.Regexp) bool {
+		m := re.FindStringSubmatch(objName)
+		return m != nil && m[1] == name
+	}
+	switch {
+	case kind == "Deployment" && objKind == "ReplicaSet":
+		return match(replicaSet)
+	case kind == "Deployment" && objKind == "Pod":
+		return match(deploymentPod)
+	case kind == "StatefulSet" && objKind == "Pod":
+		return match(ordinalPod)
+	case (kind == "DaemonSet" || kind == "ReplicaSet") && objKind == "Pod":
+		return match(generatedPod)
+	}
 	return false
+}
+
+func ordinalHomes(name string, homes map[int]string) []string {
+	ords := make([]int, 0, len(homes))
+	for o := range homes {
+		ords = append(ords, o)
+	}
+	sort.Ints(ords)
+	out := make([]string, 0, len(ords))
+	for _, o := range ords {
+		out = append(out, fmt.Sprintf("%s-%d on %s", name, o, homes[o]))
+	}
+	return out
 }
 
 func eventTime(e v1.Event) time.Time {

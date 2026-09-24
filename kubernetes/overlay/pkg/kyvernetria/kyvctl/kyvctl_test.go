@@ -26,10 +26,13 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestExplain(t *testing.T) {
@@ -298,5 +301,65 @@ func TestCalmRejectsNonPositiveTop(t *testing.T) {
 		if err := runCalm(context.Background(), nil, io.Discard, false, time.Hour, top); err == nil || !strings.Contains(err.Error(), "--top") {
 			t.Errorf("--top=%d: err = %v", top, err)
 		}
+	}
+}
+
+func TestDescends(t *testing.T) {
+	for _, tc := range []struct {
+		kind, name, objKind, objName string
+		want                         bool
+	}{
+		{"Deployment", "api", "ReplicaSet", "api-7f9c8d6b5", true},
+		{"Deployment", "api", "Pod", "api-7f9c8d6b5-x2kq4", true},
+		{"Deployment", "api", "Pod", "api-gateway-7f9c8d6b5-x2kq4", false},
+		{"Deployment", "api", "ReplicaSet", "api-gateway-7f9c8d6b5", false},
+		{"StatefulSet", "db", "Pod", "db-0", true},
+		{"StatefulSet", "db", "Pod", "db-backup-0", false},
+		{"DaemonSet", "agent", "Pod", "agent-x2kq4", true},
+		{"DaemonSet", "agent", "Pod", "agent-v2-x2kq4", false},
+		{"ReplicaSet", "api-7f9c8d6b5", "Pod", "api-7f9c8d6b5-x2kq4", true},
+	} {
+		if got := Descends(tc.kind, tc.name, tc.objKind, tc.objName); got != tc.want {
+			t.Errorf("Descends(%s %s, %s %s) = %v, want %v", tc.kind, tc.name, tc.objKind, tc.objName, got, tc.want)
+		}
+	}
+}
+
+func TestCollectStory(t *testing.T) {
+	yes := true
+	ev := func(kind, name string, uid types.UID, reason string) *v1.Event {
+		return &v1.Event{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: name + "." + reason},
+			InvolvedObject: v1.ObjectReference{Kind: kind, Name: name, UID: uid}, Reason: reason,
+			LastTimestamp: metav1.Now()}
+	}
+	client := fake.NewSimpleClientset(
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "api", UID: "d-api"}},
+		&appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "api-custom", UID: "rs-custom",
+			OwnerReferences: []metav1.OwnerReference{{UID: "d-api", Controller: &yes}}}},
+		&v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "odd-name", UID: "p-odd",
+			OwnerReferences: []metav1.OwnerReference{{UID: "rs-custom", Controller: &yes}}}},
+		ev("Deployment", "api", "d-api", "ScalingReplicaSet"),
+		ev("Pod", "odd-name", "p-odd", "Started"),                          // live, found by owner
+		ev("Pod", "api-7f9c8d6b5-x2kq4", "gone", "Killing"),                // gone, found by name
+		ev("Pod", "api-gateway-7f9c8d6b5-x2kq4", "other", "Killing"),       // someone else
+		ev("Deployment", "api-gateway", "d-gw", "ScalingReplicaSet"),       // someone else
+		ev("ReplicaSet", "api-7f9c8d6b5", "gone-rs", "SuccessfulCreate"),   // gone, found by name
+		ev("ReplicaSet", "api-gateway-7f9c8d6b5", "x", "SuccessfulCreate"), // someone else
+	)
+	s, err := collectStory(context.Background(), client, "shop", "Deployment", "api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, e := range s.events {
+		got[e.InvolvedObject.Name] = true
+	}
+	for _, want := range []string{"api", "odd-name", "api-7f9c8d6b5-x2kq4", "api-7f9c8d6b5"} {
+		if !got[want] {
+			t.Errorf("missing events of %s: %v", want, got)
+		}
+	}
+	if len(s.events) != 4 {
+		t.Errorf("got %d events, want 4: %v", len(s.events), got)
 	}
 }
