@@ -123,11 +123,12 @@ Old release: A = (Xm 1.37, Xp 1.36). New release: B = (Xm 1.38, Xp 1.37).
    apiserver to be ready before moving on. Nodes already on Xm restart
    without other change. Result: every apiserver is A-Xm, a 1.37 binary
    emulating 1.36. The controller manager and scheduler are still A-Xp (1.36).
-3. **Swap the image, same binary minor.** On every node, import release B
-   (`install-kyvernetria.sh`). Then, node by node, change the apiserver
-   manifest: image B, `KYVERNETRIA_ALLELE=Xp`, and the flag
-   `--emulated-version=1.36`. Every apiserver is now a 1.37 binary emulating
-   1.36, as in step 2.
+3. **Swap the image, same binary minor.** On every node, import release B's
+   images only: `install-kyvernetria.sh --images-only`. The full installer
+   would also replace kubelet, which must not be newer than the apiservers'
+   API yet. Then, node by node, change the apiserver manifest: image B,
+   `KYVERNETRIA_ALLELE=Xp`, and the flag `--emulated-version=1.36`. Every
+   apiserver is now a 1.37 binary emulating 1.36, as in step 2.
 4. **Raise the emulated version.** Node by node, remove
    `--emulated-version=1.36`. The apiservers now serve 1.37. During the roll,
    1.36 and 1.37 APIs are mixed, exactly as in an upstream upgrade, and the
@@ -138,15 +139,52 @@ Old release: A = (Xm 1.37, Xp 1.36). New release: B = (Xm 1.38, Xp 1.37).
 6. **Let the mosaic back in.** Node by node, remove `KYVERNETRIA_ALLELE` from
    the apiserver manifest. Nodes whose choice was Xm now run B-Xm, a 1.38
    binary emulating 1.37 (the wrapper adds the flag). Nodes on Xp run 1.37.
-7. **Finish.** Remove `/var/lib/kyvernetria/upgrading` on every node. Then
-   upgrade kubelets and kube-proxy as upstream describes (they may lag the
-   apiservers), and set `kubernetesVersion` in the `kubeadm-config` ConfigMap
-   to B's version for future joins.
+7. **Finish.** On every node run B's full `install-kyvernetria.sh` and
+   restart kubelet, one node at a time. Point kube-proxy at B:
+   `kubectl -n kube-system set image daemonset/kube-proxy kube-proxy=<B's kube-proxy image>`.
+   Set `kubernetesVersion` in the `kubeadm-config` ConfigMap to B's version
+   for future joins. Last, remove `/var/lib/kyvernetria/upgrading` on every
+   node (the installer sets it again).
 
 Steps 2 to 6 edit static pod manifests directly. `kubeadm upgrade` would
 replace all three components on a node at once, which is the move this
 procedure avoids. Keep backups of the manifests outside
 `/etc/kubernetes/manifests`, or kubelet will run them too.
+
+### Tested
+
+This procedure was run on four VMs from (Xm 1.36.4, Xp 1.35.8) to
+(Xm 1.37.0, Xp 1.36.4), with a probe reading and writing through the per-node
+load balancer every second. At every step the invariants above held, and the
+mosaic came back as it was (two Xm, one Xp). That run, made before the
+shutdown settings below existed, had connections cut (`EOF`) at every
+apiserver restart: 27 of 1031 probe checks failed, about two at each of the
+13 restarts. With the settings, six rolling apiserver restarts under a probe
+that reads a namespace and writes a ConfigMap every second through the
+per-node load balancer: 0 of 182 checks failed.
+
+When the Xp minor is older than 1.36, the `--peer-ca-file` flag also needs
+`--feature-gates=UnknownVersionInteroperabilityProxy=true`: at an emulated
+version before 1.36 the gate is off, and kube-apiserver refuses to start.
+
+## Restarting without dropping requests
+
+Every node reaches the apiservers through its own haproxy
+(`prepare-node.sh`). When an apiserver stops, haproxy keeps sending it new
+connections until its health check fails. `deploy/vms/kubeadm.yaml`
+therefore sets `--shutdown-delay-duration=15s` (on SIGTERM the apiserver
+reports not-ready at once and keeps serving for 15 s) and
+`--shutdown-send-retry-after=true`; haproxy checks `/readyz` every second and
+drops a backend after two failures. Long-running watches are still closed at
+the end of the delay, and clients reconnect.
+
+## Installing
+
+`install-kyvernetria.sh` creates `/var/lib/kyvernetria/upgrading`, which
+suspends escapes. A misconfigured install crash-loops kube-apiserver on both
+alleles, and without the flag the node would escape to the other allele for
+no benefit (seen in testing). Remove the flag once `kubeadm init` or
+`kubeadm join` has finished on the node.
 
 ## Events are kept for 30 days
 

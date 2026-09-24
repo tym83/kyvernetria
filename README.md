@@ -127,6 +127,8 @@ cd release-amd64 && ./install-kyvernetria.sh            # binaries, kubelet unit
 # on the first control-plane node:
 kubeadm init --config kubeadm.yaml --upload-certs       # set ADVERTISE_ADDRESS first
 # then kubeadm join the other nodes, and install a CNI
+# on every node, once it has joined (the installer suspends escapes meanwhile):
+rm /var/lib/kyvernetria/upgrading
 ```
 
 `prepare-node.sh` verifies the SHA-256 checksum of everything it downloads.
