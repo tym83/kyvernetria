@@ -18,6 +18,14 @@ kind: ClusterConfiguration
 kubernetesVersion: v1.37.0-kyvernetria.0
 clusterName: kyvernetria
 controlPlaneEndpoint: 127.0.0.1:6444
+# Kyvernetria's own builds (imported on every node by install-kyvernetria.sh,
+# never pulled). etcd and CoreDNS are unmodified upstream images.
+imageRepository: ghcr.io/tym83/kyvernetria
+etcd:
+  local:
+    imageRepository: registry.k8s.io
+dns:
+  imageRepository: registry.k8s.io/coredns
 # Pick subnets that nothing under the VMs uses. In particular, if the VMs'
 # resolver is a cluster DNS service (as inside Cozystack, 10.96.0.10), a
 # colliding serviceSubnet lets kube-proxy hijack the nodes' own DNS.
@@ -28,17 +36,23 @@ apiServer:
   certSANs:
     - 127.0.0.1
     - ADVERTISE_ADDRESS
-  # x-inactivation keeps each node's allele choice here; all three
-  # components on a node share it, like one X chromosome.
-  extraVolumes: &kyvernetria
+  extraArgs:
+    # Mixed-version peer proxy (UnknownVersionInteroperabilityProxy, beta and
+    # on by default since 1.36): a request for a resource this apiserver does
+    # not serve is proxied to a peer that does. Peers are reached at their
+    # --advertise-address and secure port, verified against the cluster CA
+    # (kubeadm's serving certificates carry kubernetes.default.svc, which the
+    # proxy checks), and authenticated with kubeadm's front-proxy client
+    # certificate (--proxy-client-cert-file, already set by kubeadm).
+    - name: peer-ca-file
+      value: /etc/kubernetes/pki/ca.crt
+  # x-inactivation keeps the node's kube-apiserver allele here. The
+  # controller manager and scheduler always run Xp and need no state.
+  extraVolumes:
     - name: kyvernetria
       hostPath: /var/lib/kyvernetria
       mountPath: /var/lib/kyvernetria
       pathType: DirectoryOrCreate
-controllerManager:
-  extraVolumes: *kyvernetria
-scheduler:
-  extraVolumes: *kyvernetria
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
