@@ -140,7 +140,13 @@ layer_image() { # base tag out dir-with-usr labels...
   local base="$1" tag="$2" out="$3" dir="$4"; shift 4
   local labels=()
   for l in "$@"; do labels+=(--label "${l}"); done
-  tar --uid 0 --gid 0 --numeric-owner -C "${dir}" -cf "${dir}.layer.tar" usr
+  # Files in the layer belong to root. GNU tar (Linux) and bsdtar (macOS)
+  # spell that differently.
+  local owner=(--uid 0 --gid 0)
+  if tar --version 2>/dev/null | grep -q "GNU tar"; then
+    owner=(--owner=0 --group=0)
+  fi
+  tar "${owner[@]}" --numeric-owner -C "${dir}" -cf "${dir}.layer.tar" usr
   "${CRANE}" mutate --platform "linux/${ARCH}" "$(base_ref "${base}")" --append "${dir}.layer.tar" \
     ${labels[@]+"${labels[@]}"} -t "${tag}" -o "${out}" >/dev/null
 }
