@@ -26,8 +26,8 @@ import (
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
-	"k8s.io/component-base/version"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -48,8 +48,8 @@ func newMosaicCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *co
 }
 
 type cell struct {
-	node, version, allele, note string
-	restarts                    int32
+	node, version, emulated, allele, note string
+	restarts                              int32
 }
 
 func runMosaic(ctx context.Context, f cmdutil.Factory, out io.Writer) error {
@@ -73,13 +73,21 @@ func runMosaic(ctx context.Context, f cmdutil.Factory, out io.Writer) error {
 		if err != nil {
 			c.note = "not answering: " + firstLine(err.Error())
 		} else {
+			// gitVersion is the binary's version even when the apiserver
+			// runs with --emulated-version; the emulated one is reported
+			// separately.
 			var v struct {
-				GitVersion string `json:"gitVersion"`
+				GitVersion     string `json:"gitVersion"`
+				EmulationMajor string `json:"emulationMajor"`
+				EmulationMinor string `json:"emulationMinor"`
 			}
 			if err := json.Unmarshal(raw, &v); err != nil {
 				c.note = "unreadable /version"
 			}
 			c.version = v.GitVersion
+			if v.EmulationMajor != "" && v.EmulationMinor != "" {
+				c.emulated = v.EmulationMajor + "." + v.EmulationMinor
+			}
 		}
 		cells = append(cells, c)
 	}
@@ -87,24 +95,50 @@ func runMosaic(ctx context.Context, f cmdutil.Factory, out io.Writer) error {
 	return nil
 }
 
-// AlleleOf names the allele a version belongs to: the newer minor is Xm,
-// the older Xp.
-func AlleleOf(version, newest string) string {
-	if version == "" {
-		return "?"
+// minorOf parses the major.minor of a version; ok is false for anything
+// unparseable.
+func minorOf(v string) (major, minor uint, ok bool) {
+	parsed, err := version.ParseGeneric(v)
+	if err != nil {
+		return 0, 0, false
 	}
-	if minor(version) == minor(newest) {
-		return "Xm"
-	}
-	return "Xp"
+	return parsed.Major(), parsed.Minor(), true
 }
 
-func minor(version string) string {
-	parts := strings.SplitN(strings.TrimPrefix(version, "v"), ".", 3)
-	if len(parts) < 2 {
-		return version
+// Alleles names the allele each version belongs to. The two builds come
+// from two different minor releases: the newest minor among the answering
+// nodes is Xm, older ones are Xp. With only one minor answering there is no
+// telling which allele it is, and every answering version gets "?"; so do
+// versions that can't be parsed.
+func Alleles(versions []string) (alleles []string, minors int) {
+	type mm struct{ major, minor uint }
+	seen := map[mm]bool{}
+	var newest mm
+	parsed := make([]*mm, len(versions))
+	for i, v := range versions {
+		major, minor, ok := minorOf(v)
+		if !ok {
+			continue
+		}
+		m := mm{major, minor}
+		parsed[i] = &m
+		seen[m] = true
+		if m.major > newest.major || m.major == newest.major && m.minor > newest.minor {
+			newest = m
+		}
 	}
-	return parts[0] + "." + parts[1]
+	alleles = make([]string, len(versions))
+	for i, m := range parsed {
+		switch {
+		case m == nil || len(seen) < 2:
+			alleles[i] = "?"
+		case *m == newest:
+			alleles[i] = "Xm"
+		default:
+			alleles[i] = "Xp"
+		}
+	}
+	return alleles, len(seen)
 }
 
 func firstLine(s string) string {
@@ -120,35 +154,44 @@ func renderMosaic(out io.Writer, cells []cell) {
 		return
 	}
 	sort.Slice(cells, func(i, j int) bool { return cells[i].node < cells[j].node })
-	// kyvctl is built from the Xm tree, so its own version anchors the newer
-	// allele even when every answering node happens to express Xp.
-	newest := version.Get().GitVersion
-	for _, c := range cells {
-		if c.version != "" && (newest == "" || minor(c.version) > minor(newest)) {
-			newest = c.version
+	versions := make([]string, len(cells))
+	silent := 0
+	for i, c := range cells {
+		versions[i] = c.version
+		if c.version == "" {
+			silent++
 		}
 	}
+	alleles, minors := Alleles(versions)
 	counts := map[string]int{}
 	for i := range cells {
-		cells[i].allele = AlleleOf(cells[i].version, newest)
-		counts[cells[i].allele]++
+		cells[i].allele = alleles[i]
+		counts[alleles[i]]++
 	}
 	fmt.Fprintf(out, "%-28s %-6s %-26s %s\n", "NODE", "ALLELE", "VERSION", "NOTE")
 	for _, c := range cells {
-		note := c.note
-		if note == "" && c.restarts > 0 {
-			note = fmt.Sprintf("%d restarts (an escape switches allele after repeated crashes)", c.restarts)
+		var notes []string
+		if c.note != "" {
+			notes = append(notes, c.note)
 		}
+		if major, minor, ok := minorOf(c.version); ok && c.emulated != "" && c.emulated != fmt.Sprintf("%d.%d", major, minor) {
+			notes = append(notes, "emulating "+c.emulated)
+		}
+		if c.restarts > 0 {
+			notes = append(notes, fmt.Sprintf("%d restarts (an escape switches allele after repeated crashes)", c.restarts))
+		}
+		note := strings.Join(notes, "; ")
 		fmt.Fprintf(out, "%-28s %-6s %-26s %s\n", c.node, c.allele, c.version, note)
 	}
 	switch {
-	case counts["?"] > 0:
-		fmt.Fprintf(out, "\n%d of %d nodes aren't answering, so I can't tell the whole mosaic yet.\n", counts["?"], len(cells))
-	case counts["Xm"] > 0 && counts["Xp"] > 0:
+	case silent > 0:
+		fmt.Fprintf(out, "\n%d of %d nodes aren't answering, so I can't tell the whole mosaic yet.\n", silent, len(cells))
+	case minors >= 2:
 		fmt.Fprintf(out, "\nMosaic: %d Xm, %d Xp. A bug in either build leaves the other half serving.\n", counts["Xm"], counts["Xp"])
 	case len(cells) == 1:
 		fmt.Fprintln(out, "\nOne control-plane node, one allele: no mosaic protection. Add control-plane nodes for it.")
 	default:
-		fmt.Fprintln(out, "\nEvery node expresses the same allele (it happens by chance). A common-mode bug would hit them all.")
+		fmt.Fprintln(out, "\nEvery node runs the same minor, so I can't tell which allele it is (only one minor answers). "+
+			"Either way they all express the same build, and a common-mode bug would hit them all.")
 	}
 }

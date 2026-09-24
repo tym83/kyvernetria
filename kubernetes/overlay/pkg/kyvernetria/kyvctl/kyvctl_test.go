@@ -205,16 +205,22 @@ func TestRejections(t *testing.T) {
 }
 
 func TestMosaic(t *testing.T) {
-	if AlleleOf("v1.37.0-kyvernetria.0", "v1.37.0") != "Xm" || AlleleOf("v1.36.4-kyvernetria.0", "v1.37.0") != "Xp" {
-		t.Error("allele detection wrong")
+	alleles, minors := Alleles([]string{"v1.37.0-kyvernetria.0", "v1.36.4-kyvernetria.0", ""})
+	if minors != 2 || alleles[0] != "Xm" || alleles[1] != "Xp" || alleles[2] != "?" {
+		t.Errorf("allele detection wrong: %v %d", alleles, minors)
+	}
+	// Minor versions are numbers, not strings: 1.10 is newer than 1.9.
+	if alleles, _ := Alleles([]string{"v1.9.3", "v1.10.0"}); alleles[0] != "Xp" || alleles[1] != "Xm" {
+		t.Errorf("1.9 vs 1.10: %v", alleles)
 	}
 	var out bytes.Buffer
 	renderMosaic(&out, []cell{
 		{node: "cp-1", version: "v1.37.0-kyvernetria.0"},
 		{node: "cp-2", version: "v1.36.4-kyvernetria.0", restarts: 5},
-		{node: "cp-3", version: "v1.37.0-kyvernetria.0"},
+		{node: "cp-3", version: "v1.37.0-kyvernetria.0", emulated: "1.36"},
 	})
-	if !strings.Contains(out.String(), "Mosaic: 2 Xm, 1 Xp") || !strings.Contains(out.String(), "5 restarts") {
+	if !strings.Contains(out.String(), "Mosaic: 2 Xm, 1 Xp") || !strings.Contains(out.String(), "5 restarts") ||
+		!strings.Contains(out.String(), "emulating 1.36") {
 		t.Errorf("unexpected mosaic output:\n%s", out.String())
 	}
 	out.Reset()
@@ -223,8 +229,19 @@ func TestMosaic(t *testing.T) {
 		{node: "cp-2", version: "v1.37.0-kyvernetria.0"},
 		{node: "cp-3", note: "not answering"},
 	})
-	if !strings.Contains(out.String(), "1 of 3 nodes aren't answering") || strings.Contains(out.String(), "same allele") {
+	if !strings.Contains(out.String(), "1 of 3 nodes aren't answering") || strings.Contains(out.String(), "same minor") {
 		t.Errorf("a silent node was mistaken for a uniform mosaic:\n%s", out.String())
+	}
+	// Only the older minor answers: that must not be called Xm just
+	// because kyvctl itself is newer.
+	out.Reset()
+	renderMosaic(&out, []cell{
+		{node: "cp-1", version: "v1.36.4-kyvernetria.0"},
+		{node: "cp-2", version: "v1.36.4-kyvernetria.0"},
+	})
+	if strings.Contains(out.String(), "Xm") || strings.Contains(out.String(), "Xp") ||
+		!strings.Contains(out.String(), "can't tell which allele it is (only one minor answers)") {
+		t.Errorf("a single minor was labelled:\n%s", out.String())
 	}
 }
 
