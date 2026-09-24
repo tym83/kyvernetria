@@ -20,10 +20,14 @@ import (
 	"context"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes/fake"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/policy"
 
 	"k8s.io/kubernetes/pkg/kyvernetria"
 )
@@ -35,7 +39,7 @@ func deleteAttrs(pod *api.Pod, grace *int64, who string) admission.Attributes {
 }
 
 func TestValidate(t *testing.T) {
-	zero, thirty := int64(0), int64(30)
+	zero, one, thirty := int64(0), int64(1), int64(30)
 	now := metav1.Now()
 	onNode := api.PodSpec{NodeName: "worker-1"}
 	running := &api.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "default"}, Spec: onNode,
@@ -65,9 +69,69 @@ func TestValidate(t *testing.T) {
 		{"pod already finished", finished, &zero, "alice", true},
 		{"kubelet finishing a pod", running, &zero, "system:node:worker-1", true},
 		{"pod gc", running, &zero, "system:serviceaccount:kube-system:pod-garbage-collector", true},
+		{"other kube-system service account", running, &zero, "system:serviceaccount:kube-system:replicaset-controller", false},
+		{"kubectl delete --now", running, &one, "alice", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := New().Validate(context.Background(), deleteAttrs(tc.pod, tc.grace, tc.who), nil)
+			if (err == nil) != tc.allowed {
+				t.Errorf("allowed = %v, want %v (err: %v)", err == nil, tc.allowed, err)
+			}
+		})
+	}
+}
+
+func evictionAttrs(ns, name string, grace *int64, who string) admission.Attributes {
+	eviction := &policy.Eviction{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
+	if grace != nil {
+		eviction.DeleteOptions = &metav1.DeleteOptions{GracePeriodSeconds: grace}
+	}
+	return admission.NewAttributesRecord(eviction, nil, policy.Kind("Eviction").WithVersion("version"), ns, name,
+		api.Resource("pods").WithVersion("version"), "eviction", admission.Create,
+		&metav1.CreateOptions{}, false, &user.DefaultInfo{Name: who})
+}
+
+func TestValidateEviction(t *testing.T) {
+	zero, thirty := int64(0), int64(30)
+	running := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "running", Namespace: "default"},
+		Spec: corev1.PodSpec{NodeName: "worker-1"}, Status: corev1.PodStatus{Phase: corev1.PodRunning}}
+	discussed := running.DeepCopy()
+	discussed.Name = "discussed"
+	discussed.Annotations = map[string]string{kyvernetria.DiscussedAnnotation: "true"}
+	finished := running.DeepCopy()
+	finished.Name = "finished"
+	finished.Status.Phase = corev1.PodSucceeded
+
+	factory := informers.NewSharedInformerFactory(fake.NewSimpleClientset(), 0)
+	p := New()
+	p.SetExternalKubeInformerFactory(factory)
+	for _, pod := range []*corev1.Pod{running, discussed, finished} {
+		if err := factory.Core().V1().Pods().Informer().GetStore().Add(pod); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p.SetReadyFunc(func() bool { return true })
+	if err := p.ValidateInitialization(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		pod     string
+		grace   *int64
+		who     string
+		allowed bool
+	}{
+		{"forced eviction of a running pod", "running", &zero, "alice", false},
+		{"eviction with the pod's grace period", "running", nil, "alice", true},
+		{"eviction with explicit grace", "running", &thirty, "alice", true},
+		{"forced eviction after discussion", "discussed", &zero, "alice", true},
+		{"forced eviction of a finished pod", "finished", &zero, "alice", true},
+		{"pod unknown to the cache", "gone", &zero, "alice", true},
+		{"pod gc", "running", &zero, "system:serviceaccount:kube-system:pod-garbage-collector", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := p.Validate(context.Background(), evictionAttrs("default", tc.pod, tc.grace, tc.who), nil)
 			if (err == nil) != tc.allowed {
 				t.Errorf("allowed = %v, want %v (err: %v)", err == nil, tc.allowed, err)
 			}
