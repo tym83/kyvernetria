@@ -111,7 +111,9 @@ hack/build.sh binaries   # fetch both upstream tags, patch, compile (no Docker n
 Each tree is compiled with the Go version it pins and with upstream's build
 tags. Images are named `ghcr.io/tym83/kyvernetria/<component>:<version>`;
 the installer imports them into containerd on each node and pins them, so
-containerd never garbage-collects them.
+containerd never garbage-collects them. The one exception is the kind node
+image, which keeps `registry.k8s.io/...` names inside itself because kind
+looks images up there (see [docs/OPERATIONS.md](docs/OPERATIONS.md)).
 
 ### On virtual machines (the real thing)
 
