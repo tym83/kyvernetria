@@ -86,7 +86,7 @@ func CaregiversOf(annotations map[string]string) (c Caregivers, ok bool, missing
 	case c.Secondary == "":
 		return c, false, "the secondary caregiver is not named yet"
 	case strings.EqualFold(c.Primary, c.Secondary):
-		return c, false, fmt.Sprintf("%s is named twice; care is shared between two people", c.Primary)
+		return c, false, fmt.Sprintf("%s is named twice", c.Primary)
 	}
 	return c, true, ""
 }
