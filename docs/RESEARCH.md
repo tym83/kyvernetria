@@ -7,7 +7,8 @@ literature supports it, the corrected wording and numbers, and where they come
 from.
 
 Last verified: 2026-09-24; claims 7 and 8 and the new claim 37 re-checked
-on 2026-10-04 (claim 5 only gained arithmetic on its verified numbers). All numbers below were checked against the cited
+on 2026-10-04 (claim 5 only gained arithmetic on its verified numbers);
+claims 38 to 44 (Gestation) added on 2026-10-04. All numbers below were checked against the cited
 primary source (abstract or full text) or, where marked, against a reliable
 secondary summary of it. Nothing here is taken from memory.
 
@@ -724,6 +725,239 @@ innate or fixed.
 
 - Hyde, J. S. (2005). The gender similarities hypothesis. *American Psychologist*, 60(6), 581–592. https://doi.org/10.1037/0003-066X.60.6.581
 
+## Pregnancy, birth and newborn care (Gestation)
+
+These claims ground Gestation, the launch lifecycle of a new service
+(`kyvctl conceive`, `screen`, `deliver`, `apgar`, `growth`, `remember`).
+They are different in kind from the claims above: they are not about sex
+differences in behaviour but about the biology of pregnancy, birth and
+infancy, used as a metaphor. The rule is the same. Kyvernetria borrows a
+**principle** from each finding, never a number: every amount, step and
+duration in Gestation is an engineering choice, stated as such in the code.
+Pregnancy and birth are the maternal line of the metaphor. Caring for the
+newborn is not, and Gestation does not treat it as such (claim 43).
+
+Checked on 2026-10-04. Where a source could only be read as an abstract, or
+only through a secondary source, the entry says so.
+
+### 38. Maternal plasma volume expansion
+
+- **Claim:** Maternal blood volume grows by about 40–50% during pregnancy,
+  ahead of the demand.
+- **Verdict:** SUPPORTED WITH CORRECTION
+- **Corrected wording:** Plasma volume rises a little in the first
+  trimester, fastest in the first half of the second trimester, and peaks
+  late in the third, at about 45–50% above the non-pregnant level. A
+  meta-analysis of 10 longitudinal studies (347 pregnancies) found +6% in
+  the first trimester, +18% at 14–20 weeks, +29% at 21–27 weeks, +42% at
+  28–34 weeks and +48% at 35–38 weeks; 7 of the 10 studies are over 30
+  years old, and some women peak as early as the second trimester (Aguree &
+  Gernand, 2019, abstract and full text). Hytten (1985, abstract) gives
+  about 1250 ml, "a little under 50%", with little further rise after
+  34–36 weeks. Red cell mass rises far less, about 18% without iron
+  supplements, so the blood is physiologically diluted (haematocrit falls
+  from about 40 to about 33; Hytten, 1985; Taylor & Lind, 1979, abstract).
+  The expansion supports the much greater blood flow to the uterus.
+- **Dropped:** "the expansion is a reserve against blood loss at delivery"
+  is widely repeated, but we could not confirm it in a primary source we
+  could open, so Gestation does not use it. Also corrected: "~20–30% more
+  red cells" holds only with iron supplements.
+- **How Kyvernetria uses it:** the shape, not the size. Placeholder pods
+  reserve room for a service before its launch, growing in steps: a quarter
+  of the launch size in the first trimester, two thirds in the second, all
+  of it in the third, so the room is complete before the due date. The
+  launch size is the replicas plus the one extra replica newborn care adds.
+  The fractions are engineering choices; the +45–50% figure is not used as
+  a number anywhere.
+- **Sources:**
+  - Aguree, S., & Gernand, A. D. (2019). Plasma volume expansion across healthy pregnancy: a systematic review and meta-analysis of longitudinal studies. *BMC Pregnancy and Childbirth*, 19, 508. https://doi.org/10.1186/s12884-019-2619-6
+  - Hytten, F. (1985). Blood volume changes in normal pregnancy. *Clinics in Haematology*, 14(3), 601–612. PMID 4075604.
+  - Taylor, D. J., & Lind, T. (1979). Red cell mass during and after normal pregnancy. *British Journal of Obstetrics and Gynaecology*, 86(5), 364–370. https://doi.org/10.1111/j.1471-0528.1979.tb10611.x
+
+### 39. Trimesters and the due date
+
+- **Claim:** Pregnancy is divided into trimesters, and the due date is an
+  estimate.
+- **Verdict:** SUPPORTED (the often-quoted share of babies born on the due
+  date is not used)
+- **Wording:** ACOG counts the first trimester up to and including 13 6/7
+  weeks and the third from 28 0/7 weeks (Committee Opinion 700, 2017,
+  reaffirmed 2025). Term is a range: early term 37 0/7–38 6/7 weeks, full
+  term 39 0/7–40 6/7, late term 41 0/7–41 6/7, post-term from 42 0/7
+  (Committee Opinion 579, 2013). Even with the day of ovulation known,
+  natural pregnancy length varied over a range of 37 days among 125
+  pregnancies (Jukic et al., 2013). In 34,249 pregnancies, 49.5% (dated
+  by menstrual dates) or 55.2% (by ultrasound) were born within 7 days of
+  the estimated date (Mongelli et al., 1996, abstract).
+- **Scaled down:** "only about 4% of babies arrive on their due date"
+  appears in Jukic et al.'s introduction, cited to Mongelli et al.; the
+  Mongelli abstract does not state it, so we do not use it.
+- **How Kyvernetria uses it:** the period from conception to the due date
+  is split into three equal thirds (an engineering simplification of
+  ACOG's unequal trimesters), with a screening each third. Past the due
+  date nothing happens on its own: the room stays reserved, the status says
+  the service is due, and only a person delivers it.
+- **Sources:**
+  - ACOG Committee Opinion No. 579 (2013). Definition of term pregnancy. *Obstetrics & Gynecology*, 122(5), 1139–1140. https://doi.org/10.1097/01.AOG.0000437385.88715.4a
+  - ACOG Committee Opinion No. 700 (2017). Methods for estimating the due date. *Obstetrics & Gynecology*, 129, e150–e154.
+  - Jukic, A. M., Baird, D. D., Weinberg, C. R., McConnaughey, D. R., & Wilcox, A. J. (2013). Length of human pregnancy and contributors to its natural variation. *Human Reproduction*, 28(10), 2848–2855. https://doi.org/10.1093/humrep/det297
+  - Mongelli, M., Wilcox, M., & Gardosi, J. (1996). Estimating the date of confinement: ultrasonographic biometry versus certain menstrual dates. *American Journal of Obstetrics and Gynecology*, 174(1), 278–281. https://doi.org/10.1016/s0002-9378(96)70408-8
+
+### 40. The Apgar score
+
+- **Claim:** Newborns are scored on five signs, 0–2 each, at one and five
+  minutes; 7 or more is reassuring.
+- **Verdict:** SUPPORTED WITH CORRECTION
+- **Corrected wording:** Virginia Apgar presented the score in 1952 and
+  published it in 1953: heart rate, respiratory effort, reflex
+  irritability, muscle tone and colour, each 0, 1 or 2, taken 60 seconds
+  after complete birth (Apgar, 1953, full text). The five-minute score came
+  later (a secondary source dates its adoption to the 1960s). Today the
+  score is reported at 1 and 5 minutes, and every 5 minutes up to 20
+  minutes while it is below 7. At five minutes, 7–10 is reassuring, 4–6
+  moderately abnormal and 0–3 low. The score is **not** used to decide
+  whether to start resuscitation, which begins before the one-minute score;
+  it does not predict an individual infant's death or neurological outcome,
+  and it cannot alone diagnose asphyxia (AAP & ACOG, 2015, reaffirmed
+  2025). "APGAR" as Appearance, Pulse, Grimace, Activity, Respiration is a
+  later mnemonic (Butterfield & Covey, 1962, seen through secondary sources
+  and a 1961 letter from Apgar in the NLM archive).
+- **How Kyvernetria uses it:** a launch is scored on five signs at 1 and 5
+  minutes after delivery, and every 5 minutes up to 20 while it stays below
+  7. The signs are Kyvernetria's own: appearance is ready replicas, pulse is
+  restarts and liveness failures, grimace is warning events, activity is
+  ready endpoints behind its Services (running pods for a service nobody
+  calls), respiration is OOM kills and evictions. There is no traffic or
+  throttling signal without a metrics pipeline, so neither is used. Rolling
+  back on a five-minute score below 7 is an engineering decision, and the
+  metaphor stops there: in medicine the score describes, it does not decide
+  treatment. The rollback can be switched off.
+- **Sources:**
+  - Apgar, V. (1953). A proposal for a new method of evaluation of the newborn infant. *Current Researches in Anesthesia & Analgesia*, 32(4), 260–267. PMID 13083014. Scan: https://digirepo.nlm.nih.gov/ext/document/101584647X152/PDF/101584647X152.pdf
+  - American Academy of Pediatrics Committee on Fetus and Newborn & ACOG Committee on Obstetric Practice (2015). The Apgar score. *Pediatrics*, 136(4), 819–822. https://doi.org/10.1542/peds.2015-2651 (also ACOG Committee Opinion No. 644, *Obstetrics & Gynecology*, 126(4), e52–e55, https://doi.org/10.1097/AOG.0000000000001108; reaffirmed 2025)
+
+### 41. Maternal antibodies wane; the first day is the most vulnerable
+
+- **Claim:** A newborn is protected by its mother's IgG, which wanes over
+  the first months. The first hours after birth carry the most risk.
+- **Verdict:** SUPPORTED WITH CORRECTION
+- **Corrected wording:** IgG is the only antibody class that crosses the
+  human placenta in significant amounts, carried by the neonatal Fc
+  receptor (FcRn). Transfer starts around 13 weeks, most of it happens in
+  the last 4 weeks, and at term cord IgG usually exceeds the mother's by
+  20–30% (Palmeira et al., 2012). After birth the maternal antibodies decay
+  exponentially. Measured half-lives depend on the antigen: about 24 days
+  for pertussis toxin in term infants (Embacher et al., 2023), 48 days for
+  an IgG1 allotype (Sarvas et al., 1993, abstract), 79 days for RSV
+  antibodies in Kenya (Ochola et al., 2009, abstract). Maternal measles
+  antibodies lasted a median 2.6 months, with over 95% of infants without
+  them by 6 months (Leuridan et al., 2010, abstract); a review puts the
+  waning at 6–12 months overall (Niewiesk, 2014). WHO: 75% of neonatal
+  deaths happen in the first week and about 1 million newborns die within
+  their first 24 hours (fact sheet, 2024); WHO recommends at least 24
+  hours of care in a facility after birth and postnatal contacts at 48–72
+  hours, 7–14 days and in week six (2022).
+- **Scaled down:** WHO does not define a "first 72 hours" period; 72 hours
+  is only the upper edge of the second postnatal contact. "Gone by 6–12
+  months" is a review's range, not a measured endpoint.
+- **How Kyvernetria uses it:** newborn care lasts 72 hours, an engineering
+  choice that compresses months into hours. The protection is strongest in
+  the first day, the most vulnerable time, and halves every 24 hours, as an
+  exponential decay with a half-life of one day would: the newborn's new
+  pods get priority 1000, then 500, then 250 (above ordinary pods at 0, far
+  below anything critical). It is passive, like maternal IgG: the pods do
+  not preempt anyone; they are only harder to preempt and evicted later.
+  A pod's priority is fixed when it is created, so a pod keeps the tier it
+  was born with until it is replaced. During care the service also gets an
+  extra replica, a PodDisruptionBudget, and a label that alert rules treat
+  more strictly.
+- **Sources:**
+  - Palmeira, P., Quinello, C., Silveira-Lessa, A. L., Zago, C. A., & Carneiro-Sampaio, M. (2012). IgG placental transfer in healthy and pathological pregnancies. *Clinical and Developmental Immunology*, 2012, 985646. https://doi.org/10.1155/2012/985646
+  - Niewiesk, S. (2014). Maternal antibodies: clinical significance, mechanism of interference with immune responses, and possible vaccination strategies. *Frontiers in Immunology*, 5, 446. https://doi.org/10.3389/fimmu.2014.00446
+  - Leuridan, E., Hens, N., Hutse, V., Ieven, M., Aerts, M., & Van Damme, P. (2010). Early waning of maternal measles antibodies in era of measles elimination: longitudinal study. *BMJ*, 340, c1626. https://doi.org/10.1136/bmj.c1626
+  - Sarvas, H., Seppälä, I., Kurikka, S., Siegberg, R., & Mäkelä, O. (1993). Half-life of the maternal IgG1 allotype in infants. *Journal of Clinical Immunology*, 13(2), 145–151. https://doi.org/10.1007/BF00919271
+  - Ochola, R., et al. (2009). The level and duration of RSV-specific maternal IgG in infants in Kilifi Kenya. *PLoS ONE*, 4(12), e8088. https://doi.org/10.1371/journal.pone.0008088
+  - Embacher, S., Maertens, K., & Herzog, S. A. (2023). Half-life estimation of pertussis-specific maternal antibodies in (pre)term infants after in-pregnancy Tdap vaccination. *Journal of Infectious Diseases*, 228(11), 1640–1648. https://doi.org/10.1093/infdis/jiad212
+  - WHO (2024). Newborn mortality (fact sheet, 14 March 2024). https://www.who.int/news-room/fact-sheets/detail/newborn-mortality
+  - WHO (2022). WHO recommendations on maternal and newborn care for a positive postnatal experience. https://iris.who.int/handle/10665/352658
+
+### 42. WHO growth charts
+
+- **Claim:** Children are judged by the line they follow on percentile
+  charts over time.
+- **Verdict:** SUPPORTED WITH CORRECTION
+- **Corrected wording:** The WHO Child Growth Standards (2006), built from
+  8440 healthy breastfed children at six sites, describe how children
+  *should* grow under optimal conditions: a prescriptive standard, not a
+  description of one population. The charts come as z-score lines and as
+  percentile lines (3rd, 15th, 50th, 85th, 97th). WHO's training course
+  reads growth as a trend over a series of visits: a line that crosses a
+  z-score line, rises or falls sharply, or stays flat may signal a
+  problem, depending on where the change began and where it is heading.
+- **Corrected:** WHO's rule is about crossing z-score lines, not
+  "centile lines", and WHO does not say that one measurement is
+  uninformative; it says to read each point against the trend.
+- **How Kyvernetria uses it:** `kyvctl growth` draws the same five
+  percentiles, but from the service's **own** history, because no
+  population of services "should" grow alike. It then compares the latest
+  use with the bands and with the service's requests: outgrowing its
+  requests, falling behind its own curve (a check, since a service that
+  suddenly uses less may have stopped getting work), above its own curve,
+  plenty of room, or on its curve. Measurements come from the metrics API
+  (metrics-server); without it there is nothing to chart, and it says so.
+- **Sources:**
+  - WHO Multicentre Growth Reference Study Group (2006). WHO Child Growth Standards based on length/height, weight and age. *Acta Paediatrica Supplement*, 450, 76–85. https://doi.org/10.1111/j.1651-2227.2006.tb02378.x
+  - WHO (2008). Training Course on Child Growth Assessment. Module C: Interpreting Growth Indicators. https://iris.who.int/handle/10665/43601
+  - WHO. Child growth standards (questions and answers). https://www.who.int/news-room/questions-and-answers/item/child-growth-standards
+
+### 43. Caregiving changes the father's brain too
+
+- **Claim:** Fathers' brains adapt to caregiving (Abraham et al., 2014).
+- **Verdict:** SUPPORTED, with the study's limits
+- **Wording:** In an fMRI study of 89 first-time parents (87 scanned): 20
+  primary-caregiving mothers, 21 secondary-caregiving fathers and 48
+  primary-caregiving fathers raising infants with a male partner and no
+  maternal involvement. The primary-caregiving fathers showed high amygdala
+  activation to their infant, similar to the mothers. Across all fathers,
+  the time spent in sole, direct childcare correlated with amygdala–superior
+  temporal sulcus connectivity (r = 0.33). The study is cross-sectional and
+  correlational with modest groups, and family structure is confounded with
+  sexual orientation; it suggests, and does not prove, that the parental
+  brain follows caregiving experience.
+- **How Kyvernetria uses it:** a newborn service goes home from newborn
+  care only to two named caregivers, primary and secondary on-call
+  (annotations on the Deployment). Until then the status stays
+  NeedsCaregivers, the protection stays at its gentlest tier, and the
+  cluster mentions it every 12 hours. The two caregivers echo the two
+  alleles of the mosaic control plane: care is shared, and it is not
+  gendered. Any two people will do, as long as they are two.
+- **Source:** Abraham, E., Hendler, T., Shapira-Lichter, I., Kanat-Maymon, Y., Zagoory-Sharon, O., & Feldman, R. (2014). Father's brain is sensitive to childcare experiences. *PNAS*, 111(27), 9792–9797. https://doi.org/10.1073/pnas.1402569111
+
+### 44. Fetal microchimerism
+
+- **Claim:** Cells from a pregnancy can persist in the mother for decades
+  (Bianchi et al., 1996).
+- **Verdict:** SUPPORTED, small study; keep the wording cautious
+- **Wording:** Bianchi et al. found male DNA in sorted blood progenitor
+  cells (CD34+CD38+) of 6 of 8 non-pregnant women who had given birth to
+  sons, one of whom had last borne a son 27 years earlier (abstract). The
+  sample is very small, detection was by PCR for Y-chromosome sequences,
+  and the 27 years rest on one woman. Reviews report fetal cells in
+  maternal blood and tissues for decades after birth, with health effects
+  that are mixed: reports link them both to repair and to disease, and
+  their significance remains unclear (Boddy et al., 2015).
+- **How Kyvernetria uses it:** when a service born through Gestation is
+  decommissioned or moved away, the cluster keeps a small record: its name
+  and namespace, the dates it was born and left, its caregivers, what it
+  depended on (names only) and the digest of its last pod template. The
+  records live in the `kyvernetria-microchimerism` ConfigMap in
+  `kyvernetria-system`, bounded at 256 records; when full, the record of
+  the service that left longest ago goes first. Nothing more is borrowed:
+  the record does nothing, as the biology's effects are unclear.
+- **Sources:**
+  - Bianchi, D. W., Zickwolf, G. K., Weil, G. J., Sylvester, S., & DeMaria, M. A. (1996). Male fetal progenitor cells persist in maternal blood for as long as 27 years postpartum. *PNAS*, 93(2), 705–708. https://doi.org/10.1073/pnas.93.2.705
+  - Boddy, A. M., Fortunato, A., Wilson Sayres, M., & Aktipis, A. (2015). Fetal microchimerism and maternal health: a review and evolutionary analysis of cooperation and conflict beyond the womb. *BioEssays*, 37(10), 1106–1118. https://doi.org/10.1002/bies.201500059
+
 ---
 
 ## Claim → Kyvernetria feature
@@ -757,6 +991,14 @@ should consider removing the feature.
 | 31 | Women lead most changes from below and use fewer stigmatised stable variants | Early alpha API adoption plus strict label conventions | OK |
 | 32 | More pronouns and social words, small effect | Human-readable error messages | OK. Based on word use only; verbal fluency (claim 14) is not a basis. |
 | 29 | Girls slightly ahead in early language, small effect | Fast first output during bootstrap | OK |
+
+| 38 | Maternal plasma volume grows ~45–50%, fastest in the second trimester, near its peak before term | Gestation: placeholder pods reserve launch room in trimester steps (¼, ⅔, all) | OK. Shape only; "reserve against blood loss" dropped as unverified. |
+| 39 | Trimesters; term is a range and the due date an estimate | Three screenings before the due date; nothing happens on its own past it | OK. Equal thirds are a simplification. "~4% on the due date" not used. |
+| 40 | Apgar: five signs 0–2 at 1 and 5 minutes, repeated to 20 while below 7; describes, does not decide treatment | Launch scored at 1 and 5 minutes; below 7 at five minutes rolls back (opt-out) | OK. The signs and the rollback are Kyvernetria's own. |
+| 41 | Maternal IgG wanes over months (half-lives weeks); the first day and week carry the most neonatal risk | 72 hours of newborn care; priority bump halving every 24 hours, passive (never preempts) | OK. 72 hours is an engineering choice; WHO defines no 72-hour window. |
+| 42 | WHO growth standards: percentile/z-score lines, judged as a trend | `kyvctl growth`: bands from the service's own history, against its requests | OK. Own history, not a population standard. |
+| 43 | Primary-caregiving fathers' amygdala activation resembles mothers'; childcare time tracks connectivity (r = 0.33) | Discharge only to two named caregivers | OK. Small, correlational study; used for "care is shared, not gendered". |
+| 44 | Fetal cells can persist in the mother for decades (6 of 8 women, up to 27 years); effects unclear | A small permanent record of each service that left | OK. Small study; the record does nothing. |
 
 No current mapping relies on claims 3 (tetrachromacy), 13 (male variability),
 23 (gender-equality paradox), 33 (Tannen) or 34 (Lakoff). Keep it that way.
@@ -792,5 +1034,11 @@ No current mapping relies on claims 3 (tetrachromacy), 13 (male variability),
 - **Weaker or "delicate" hardware in general.** Differences in strength are
   real (claim 6), but they say nothing about reliability, and the model uses
   greater fatigue resistance instead (claim 7).
+- **Caregiving as a woman's job.** Pregnancy and birth are the maternal
+  line of Gestation; caring for the newborn is not. Gestation asks for two
+  caregivers of any gender (claim 43).
+- **Pregnancy as illness or fragility.** Gestation protects a newborn
+  service because a launch is a risky moment for software, not because
+  anything about pregnancy is weakness.
 - **Anything about individuals.** Kyvernetria models averages and never
   predicts or labels any specific person.
