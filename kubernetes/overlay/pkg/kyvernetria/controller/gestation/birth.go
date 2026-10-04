@@ -128,7 +128,7 @@ func (c *Controller) deliver(ctx context.Context, g *api.Gestation, d *appsv1.De
 	g.Status.Birth, g.Status.Care, g.Status.Apgar = birth, care, nil
 	g.Status.Phase = api.PhaseNewbornCare
 	g.Status.Message = fmt.Sprintf("%s is being born. The first Apgar score comes at one minute.", d.Name)
-	c.deployEvent(d, v1.EventTypeNormal, ReasonDelivered, "Delivered: the room reserved for it is released. First Apgar score at one minute.")
+	c.deployEvent(d, v1.EventTypeNormal, ReasonDelivered, "The room reserved for it is released. First Apgar score at one minute.")
 	if mem != nil {
 		mem.put(api.Record{Namespace: d.Namespace, Name: d.Name, UID: string(d.UID), Born: api.Stamp(now),
 			ConfigDigest: api.ConfigDigest(&d.Spec.Template)})
