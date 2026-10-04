@@ -80,6 +80,11 @@ func TestConceiveValidates(t *testing.T) {
 	if !strings.Contains(out.String(), "Conceived shop/web, due 2026-11-01 (in 28 days)") {
 		t.Errorf("conceive output:\n%s", out.String())
 	}
+	out.Reset()
+	renderConceived(&out, g, time.Date(2026, 10, 31, 9, 0, 0, 0, time.UTC))
+	if !strings.Contains(out.String(), "due 2026-11-01 (in 1 day).") {
+		t.Errorf("conceive output a day before:\n%s", out.String())
+	}
 	if _, err := Conceive(context.Background(), dyn, "shop", "web", ok, conceivedAt); err == nil || !strings.Contains(err.Error(), "already on its way") {
 		t.Errorf("conceiving twice: %v", err)
 	}

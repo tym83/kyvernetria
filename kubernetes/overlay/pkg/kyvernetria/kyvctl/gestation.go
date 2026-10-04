@@ -168,7 +168,7 @@ func Conceive(ctx context.Context, dyn dynamic.Interface, ns, name string, o Con
 func renderConceived(out io.Writer, g *api.Gestation, now time.Time) {
 	due, _ := g.Spec.DueTime()
 	days := int(due.Sub(now).Hours()/24) + 1
-	fmt.Fprintf(out, "Conceived %s/%s, due %s (in %d days).\n", g.Namespace, g.Name, g.Spec.Due, days)
+	fmt.Fprintf(out, "Conceived %s/%s, due %s (in %s).\n", g.Namespace, g.Name, g.Spec.Due, plural(days, "day"))
 	fmt.Fprintf(out, "Room for its %d replicas, and one more for newborn care, is reserved in trimester steps.\n", g.Spec.Replicas)
 	fmt.Fprintf(out, "It is screened every trimester; for a look now: kyvctl screen %s -n %s\n", g.Name, g.Namespace)
 }
