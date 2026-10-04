@@ -428,6 +428,22 @@ func TestCollectStory(t *testing.T) {
 	if len(s.events) != 4 {
 		t.Errorf("got %d events, want 4: %v", len(s.events), got)
 	}
+
+	// A deleted Deployment still has its story, from events by name.
+	if err := client.AppsV1().Deployments("shop").Delete(context.Background(), "api", metav1.DeleteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	s, err = collectStory(context.Background(), client, "shop", "Deployment", "api")
+	if err != nil {
+		t.Fatalf("story of a deleted deployment: %v", err)
+	}
+	if !strings.HasSuffix(s.title, "(no longer here)") || len(s.events) != 3 {
+		t.Errorf("deleted deployment: %q, %d events", s.title, len(s.events))
+	}
+	// One that never was is still not found.
+	if _, err := collectStory(context.Background(), client, "shop", "Deployment", "never"); err == nil {
+		t.Error("a deployment that never existed has a story")
+	}
 }
 
 func TestComfortIgnoresFlagValues(t *testing.T) {
