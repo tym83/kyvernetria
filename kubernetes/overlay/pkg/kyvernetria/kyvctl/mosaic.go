@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
+	"k8s.io/client-go/kubernetes"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -57,9 +58,21 @@ func runMosaic(ctx context.Context, f cmdutil.Factory, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	pods, err := client.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{LabelSelector: "component=kube-apiserver"})
+	cells, err := apiserverCells(ctx, client)
 	if err != nil {
 		return err
+	}
+	renderMosaic(out, cells)
+	return nil
+}
+
+// apiserverCells asks every kube-apiserver pod in kube-system for its
+// /version, through the pod proxy, so that each apiserver answers for
+// itself rather than whichever one the load balancer picks.
+func apiserverCells(ctx context.Context, client kubernetes.Interface) ([]cell, error) {
+	pods, err := client.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{LabelSelector: "component=kube-apiserver"})
+	if err != nil {
+		return nil, err
 	}
 	var cells []cell
 	for _, pod := range pods.Items {
@@ -91,8 +104,7 @@ func runMosaic(ctx context.Context, f cmdutil.Factory, out io.Writer) error {
 		}
 		cells = append(cells, c)
 	}
-	renderMosaic(out, cells)
-	return nil
+	return cells, nil
 }
 
 // minorOf parses the major.minor of a version; ok is false for anything

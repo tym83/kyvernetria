@@ -36,7 +36,7 @@ import (
 // ownCommands are added after kubectl builds its tree.
 var ownCommands = map[string]bool{
 	"remember": true, "relationships": true, "rels": true, "exclude": true,
-	"include": true, "calm": true, "diagnose": true, "mosaic": true,
+	"include": true, "calm": true, "diagnose": true, "mosaic": true, "support": true,
 }
 
 // invokesOwnCommand reports whether the command line runs one of kyvctl's
@@ -154,6 +154,7 @@ func newCommand(streams genericiooptions.IOStreams, args []string) *cobra.Comman
 		newCalmCommand(f, streams),
 		newDiagnoseCommand(f, streams),
 		newMosaicCommand(f, streams),
+		newSupportCommand(f, streams),
 	} {
 		root.AddCommand(c)
 	}
