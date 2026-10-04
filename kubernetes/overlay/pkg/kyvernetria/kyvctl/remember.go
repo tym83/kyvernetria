@@ -38,18 +38,32 @@ import (
 )
 
 func newRememberCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *cobra.Command {
-	return &cobra.Command{
-		Use:   "remember TYPE/NAME",
-		Short: "Tell the story of a workload: everything that happened to it and its pods",
+	var all bool
+	c := &cobra.Command{
+		Use:   "remember [TYPE/NAME]",
+		Short: "Tell the story of a workload, or, with no arguments, remember the services that have left",
 		Long: "Kyvernetria keeps events for 30 days instead of one hour (episodic memory).\n" +
-			"remember shows them as one timeline for the object, its ReplicaSets and its pods,\n" +
-			"including pods that no longer exist, plus the nodes it has lived on.",
-		Example: "  kyvctl remember deploy/api\n  kyvctl remember sts/db -n shop",
-		Args:    cobra.ExactArgs(1),
+			"remember TYPE/NAME shows them as one timeline for the object, its ReplicaSets and its pods,\n" +
+			"including pods that no longer exist, plus the nodes it has lived on.\n\n" +
+			"With no arguments it lists the services this cluster gave birth to (kyvctl deliver) and that\n" +
+			"have since left: when they were born and left, their caregivers, what they depended on\n" +
+			"(names only) and their last configuration digest. The cluster keeps a little of each.",
+		Example: "  kyvctl remember deploy/api\n  kyvctl remember sts/db -n shop\n  kyvctl remember\n  kyvctl remember --all",
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				client, err := f.KubernetesClientSet()
+				cmdutil.CheckErr(err)
+				records, err := Memory(cmd.Context(), client)
+				cmdutil.CheckErr(err)
+				renderMemory(streams.Out, records, all)
+				return
+			}
 			cmdutil.CheckErr(runRemember(cmd.Context(), f, streams.Out, args[0]))
 		},
 	}
+	c.Flags().BoolVar(&all, "all", false, "With no TYPE/NAME: also list the services born here that are still here")
+	return c
 }
 
 func runRemember(ctx context.Context, f cmdutil.Factory, out io.Writer, target string) error {
