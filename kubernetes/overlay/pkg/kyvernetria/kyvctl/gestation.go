@@ -480,7 +480,7 @@ func renderGrowth(out io.Writer, g *api.Gestation, charts []api.Assessment, live
 	if s := g.Status.Growth; len(s) > 1 {
 		span = " over " + humanSpan(s[len(s)-1].Time.Sub(s[0].Time.Time))
 	}
-	fmt.Fprintf(out, "Growth of %s (%s): %d measurements%s, per pod\n\n", g.Spec.Deployment, g.Namespace, len(g.Status.Growth), span)
+	fmt.Fprintf(out, "Growth of %s (%s): %s%s, per pod\n\n", g.Spec.Deployment, g.Namespace, plural(len(g.Status.Growth), "measurement"), span)
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', tabwriter.AlignRight)
 	now := "latest"
 	if live {
