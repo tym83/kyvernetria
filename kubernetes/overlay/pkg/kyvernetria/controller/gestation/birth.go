@@ -299,7 +299,7 @@ func (c *Controller) apgar(ctx context.Context, g *api.Gestation, d *appsv1.Depl
 	case roll:
 		g.Status.Phase = api.PhaseRolledBack
 		g.Status.Message = fmt.Sprintf("Apgar %d at five minutes. %s went back to revision %s, where it was well. "+
-			"When it is ready, deliver it again: kyvctl deliver %s --again.", score.Total, d.Name, b.PreviousRevision, g.Name)
+			"When it is ready, deliver it again: kyvctl deliver %s -n %s --again.", score.Total, d.Name, b.PreviousRevision, g.Name, g.Namespace)
 		c.deployEvent(d, v1.EventTypeWarning, ReasonRolledBack, "Apgar %d at five minutes (%s). Going back to revision %s, where it was well.",
 			score.Total, score.Weakest(), b.PreviousRevision)
 	case score.Total < api.Reassuring:

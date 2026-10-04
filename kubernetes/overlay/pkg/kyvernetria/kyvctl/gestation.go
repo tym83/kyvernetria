@@ -274,8 +274,8 @@ func Deliver(ctx context.Context, dyn dynamic.Interface, ns, name string, again 
 	}
 	switch {
 	case g.Status.Phase == api.PhaseRolledBack && !again:
-		return nil, fmt.Errorf("%s went back to revision %s after its Apgar score. When it is ready: kyvctl deliver %s --again",
-			g.Spec.Deployment, g.Status.Birth.RolledBackTo, name)
+		return nil, fmt.Errorf("%s went back to revision %s after its Apgar score. When it is ready: kyvctl deliver %s -n %s --again",
+			g.Spec.Deployment, g.Status.Birth.RolledBackTo, name, ns)
 	case g.Status.Phase == api.PhaseDeparted:
 		return nil, fmt.Errorf("%s has left the cluster; conceive a new one", g.Spec.Deployment)
 	case g.Born() && g.Status.Phase != api.PhaseRolledBack:

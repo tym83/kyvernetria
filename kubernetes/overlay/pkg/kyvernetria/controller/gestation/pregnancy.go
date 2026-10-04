@@ -64,7 +64,7 @@ func (c *Controller) pregnancy(ctx context.Context, g *api.Gestation, d *appsv1.
 	if tri == 0 {
 		g.Status.Phase = api.PhaseDue
 		g.Status.Message = fmt.Sprintf("Due since %s. Nothing happens on its own; deliver it when it is ready "+
-			"(kyvctl deliver %s). Its room stays reserved until then.", g.Spec.Due, g.Name)
+			"(kyvctl deliver %s -n %s). Its room stays reserved until then.", g.Spec.Due, g.Name, g.Namespace)
 	} else {
 		g.Status.Phase = api.PhaseExpecting
 		g.Status.Message = fmt.Sprintf("Trimester %d of 3, due %s. Room reserved for %d of the %d pods it will need at birth.",
