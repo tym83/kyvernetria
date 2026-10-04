@@ -152,7 +152,7 @@ func newKyvernetriaGestationController(ctx context.Context, controllerContext Co
 	// Image checks ask registries anonymously; never with credentials.
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	broadcaster := record.NewBroadcaster(record.WithContext(ctx))
-	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "kyvernetria-gestation"})
+	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: gestation.EventSource})
 	c := gestation.New(gestation.Clients{
 		Kube: client, CRDs: crds, Dynamic: dyn, Metadata: meta, Metrics: metrics,
 		HTTPClient: &http.Client{Transport: transport, Timeout: 5 * time.Second},

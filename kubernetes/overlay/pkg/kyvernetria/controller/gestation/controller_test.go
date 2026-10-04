@@ -493,6 +493,27 @@ func TestLowApgarRollsBack(t *testing.T) {
 	}
 }
 
+// The controller's own warnings on the Deployment (a low score at one
+// minute) are not the newborn's grimace.
+func TestApgarIgnoresItsOwnWarnings(t *testing.T) {
+	h := newHarness(t)
+	rs, birth := born(t, h)
+	for _, n := range []string{"web-v2-a", "web-v2-b", "web-v2-c"} {
+		h.addPod(n, rs, true, nil)
+	}
+	_, err := h.kube.CoreV1().Events("shop").Create(h.ctx, &v1.Event{
+		ObjectMeta: metav1.ObjectMeta{Name: "own", Namespace: "shop"}, Type: v1.EventTypeWarning, Reason: ReasonApgarLow,
+		InvolvedObject: v1.ObjectReference{Kind: "Deployment", Name: "web"}, Count: 1,
+		Source: v1.EventSource{Component: EventSource}, LastTimestamp: metav1.NewTime(birth.Add(30 * time.Second)),
+	}, metav1.CreateOptions{})
+	h.must(err)
+	h.now = birth.Add(time.Minute)
+	h.sync()
+	if g := h.gestation(); len(g.Status.Apgar) != 1 || g.Status.Apgar[0].Grimace != 2 {
+		t.Fatalf("own warning counted: %+v", g.Status.Apgar)
+	}
+}
+
 func TestLowApgarWithoutRollbackKeepsScoring(t *testing.T) {
 	h := newHarness(t)
 	h.patchSpec(map[string]interface{}{"autoRollback": false})

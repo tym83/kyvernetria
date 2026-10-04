@@ -257,6 +257,10 @@ func (c *Controller) updateStatus(ctx context.Context, g *api.Gestation) error {
 
 const fieldManager = "kyvernetria-gestation"
 
+// EventSource is the component the controller's events come from. Apgar
+// leaves them out: its own warnings are not the newborn's grimace.
+const EventSource = "kyvernetria-gestation"
+
 // event records an event on the gestation.
 func (c *Controller) event(g *api.Gestation, eventType, reason, format string, args ...interface{}) {
 	ref := &unstructured.Unstructured{}

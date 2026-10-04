@@ -398,7 +398,8 @@ func (c *Controller) signs(ctx context.Context, d *appsv1.Deployment, b *api.Bir
 	}
 
 	// Events: warnings about the newborn's pods (gone ones by name), its
-	// ReplicaSet and its Deployment, since birth.
+	// ReplicaSet and its Deployment, since birth. Not this controller's
+	// own: a low score at one minute would lower the score at five.
 	about := func(e *v1.Event) bool {
 		o := e.InvolvedObject
 		switch o.Kind {
@@ -419,7 +420,8 @@ func (c *Controller) signs(ctx context.Context, d *appsv1.Deployment, b *api.Bir
 		}
 		for i := range list.Items {
 			e := &list.Items[i]
-			if e.Type != v1.EventTypeWarning || !about(e) || eventTime(e).Before(b.Time.Time) {
+			if e.Type != v1.EventTypeWarning || !about(e) || eventTime(e).Before(b.Time.Time) ||
+				e.Source.Component == EventSource || e.ReportingController == EventSource {
 				continue
 			}
 			n := e.Count
