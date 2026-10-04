@@ -49,7 +49,7 @@ done
 
 # Controller manager: the Kyvernetria controllers are declared.
 grep -q KyvernetriaWorryController cmd/kube-controller-manager/app/controllermanager_test.go ||
-  perl -0pi -e 's|(\t\tnames.ServiceCIDRController,\n)|$1\t\tKyvernetriaPlaceMemoryController,\n\t\tKyvernetriaRelationshipsController,\n\t\tKyvernetriaWorryController,\n|' \
+  perl -0pi -e 's|(\t\tnames.ServiceCIDRController,\n)|$1\t\tKyvernetriaGestationController,\n\t\tKyvernetriaPlaceMemoryController,\n\t\tKyvernetriaRelationshipsController,\n\t\tKyvernetriaWorryController,\n|' \
     cmd/kube-controller-manager/app/controllermanager_test.go
 
 gofmt -w pkg/apis/apps pkg/apis/extensions cmd/kube-apiserver/app/options pkg/controlplane/apiserver/options
