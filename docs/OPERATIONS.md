@@ -238,6 +238,146 @@ Give both etcd clusters an explicit `--quota-backend-bytes` (for example
 8 GiB), and alert on `etcd_mvcc_db_total_size_in_bytes` approaching it. A
 full main etcd stops the cluster. A full events etcd only loses events.
 
+## Gestation
+
+Gestation is the launch lifecycle of a new service. One controller in
+kube-controller-manager, `kyvernetria-gestation-controller`, runs it every
+15 seconds; the NewbornCare admission plugin in kube-apiserver applies its
+priority bump. The controller installs the `gestations.kyvernetria.io` API
+(namespaced, short name `gest`) itself, as the relationships controller
+does for Relationships.
+
+### Why a custom resource
+
+A launch needs state before the Deployment exists (the due date, the size,
+the reserved room), status the controller writes (trimester, screening
+findings, Apgar scores, care tier, growth samples) and a place for
+`kubectl get` to show all of it. Annotations on a Deployment can't exist
+before the Deployment, would mix the controller's status into an object
+that GitOps tools rewrite, and have no status subresource. So a Gestation
+is its own object, and the Deployment stays the user's.
+
+### What it creates and changes
+
+| Object | When | Notes |
+|---|---|---|
+| PriorityClasses `kyvernetria-placenta` (-1), `kyvernetria-newborn-1/2/3` (1000, 500, 250) | Once | All `preemptionPolicy: Never`. Created if missing, never updated (a class's value can't change) |
+| Deployment `<name>-placenta` | From conception to delivery | Pause containers, pinned by digest, each the size of one replica. Owned by the Gestation, so deleting the Gestation removes it. Its replicas grow ¼, ⅔, all of `replicas + 1` by trimester. It copies the service's node selector, node affinity and tolerations once the Deployment exists |
+| The service's Deployment | At delivery | Unpaused, scaled to the planned replicas (if at 0) plus one, labelled `kyvernetria.io/care=newborn`, annotated `kyvernetria.io/born` |
+| PodDisruptionBudget `<name>-newborn` | At delivery, if no budget covers the pods | `minAvailable` = replicas − 1 (all but the extra one). With one replica a drain waits until care ends |
+| Namespace annotation `kyvernetria.io/newborn-care` | During care | The selectors of newborns and their tier; read by NewbornCare |
+| ConfigMap `kyvernetria-system/kyvernetria-microchimerism` | At birth, then kept current | The memory of born services, at most 256 records |
+
+Discharge, a rollback or the Deployment's deletion undo the care: the extra
+replica, the label, the budget and the namespace entry go.
+
+### Reserving room
+
+The placeholders sit at priority -1: any ordinary pod (priority 0) that
+needs their room preempts them, and they never preempt anything. -1 is above
+the cluster autoscaler's default cutoff for expendable pods
+(`--expendable-pods-priority-cutoff=-10`), so a Pending placeholder makes
+the autoscaler add a node; raise the cutoff above -1 and it won't. In a
+namespace with a ResourceQuota the placeholders count against it, which
+reserves the quota too; screening counts their share as available for the
+launch.
+
+### Prenatal screening
+
+Once per trimester and on `kyvctl screen`. Findings are `clear`, `info`,
+`warn` or `fail`, in `status.screening` and as one event on the Gestation.
+
+- **Image:** first whether a node already has it (node status), then a
+  manifest `HEAD` to its registry, following an anonymous token challenge
+  as `docker pull` of a public image does, with a 5-second timeout. No
+  credentials are sent and pull secrets are never read: a private image is
+  `info` ("can't check"), and the kubelet is the first to pull it, at
+  birth. An air-gapped cluster gets `info` ("couldn't reach").
+- **Secrets and ConfigMaps:** everything the pod template refers to that
+  is not optional, looked up as metadata only (PartialObjectMetadata).
+  RBAC has no metadata-only verb, so the controller's role can `get`
+  Secrets; the code never asks for their data.
+- **Volumes:** each claim exists and is bound, or can be provisioned (its
+  storage class, or a default one, exists; its size is set and under
+  64Ti).
+- **Quota:** every ResourceQuota has room for `replicas + 1` replicas of
+  the planned size.
+- **Probes, requests, disruption budget, reservation:** readiness probes
+  (warn) and liveness probes (info), CPU and memory requests, a covering
+  PodDisruptionBudget (info), and pods no larger than the room reserved.
+
+### Delivery and the Apgar score
+
+`kyvctl deliver` raises `spec.delivery`. The controller deletes the
+placeholders, waits up to 2 minutes for them to go, writes the namespace
+annotation, then unpauses and scales the Deployment. Apply the Deployment
+paused or at 0 replicas before the due date, so screening sees it. If it is
+already running, delivery just marks the moment.
+
+The birth revision is the Deployment's revision once the deployment
+controller has caught up; the previous revision is the newest older one.
+At 1 and 5 minutes, and every 5 minutes up to 20 while below 7, the
+controller scores the pods of the birth revision:
+
+| Sign | 2 | 1 | 0 |
+|---|---|---|---|
+| Appearance | all ready | at least half | fewer |
+| Pulse | no restarts, no liveness failures | some | crash loop, or more restarts than replicas |
+| Grimace | no warning events | 1–5 | more |
+| Activity | ready endpoints for every replica behind the Services that select it | some | none |
+| Respiration | no OOM kills, no evictions | one OOM kill, or evictions | two or more OOM kills |
+
+Readiness and startup probe failures are left to Appearance, and liveness
+failures and back-offs to Pulse. Warnings come from events only; logs are
+not read. Activity uses endpoints because the controller has no traffic
+metric; a service no Service selects is judged by its running pods.
+Respiration has no CPU throttling signal for the same reason.
+
+Below 7 at five minutes the controller puts the previous revision's pod
+template back (like `kubectl rollout undo`), ends newborn care and sets the
+phase to RolledBack, with a Warning event on the Deployment. Without a
+previous revision it doesn't roll back and says so. With
+`kyvctl conceive --no-rollback` (`spec.autoRollback: false`) it only keeps
+scoring. `kyvctl deliver --again` starts a new delivery after a rollback.
+
+### Newborn care
+
+Care lasts 72 hours after delivery. The priority tier is 1 (1000) for the
+first 24 hours, 2 (500) for the next 24 and 3 (250) for the last. The
+NewbornCare plugin gives the tier's class to new pods whose labels match a
+newborn's selector, before the Priority plugin resolves it. It never
+replaces a priority class a pod names, never sets one that doesn't exist or
+isn't a care tier, and never sets one at or below the cluster's global
+default. A pod's priority can't change after it is created, so a pod keeps
+the tier it was created with until it is replaced; pods created later in
+the period get the lower tiers.
+
+At 72 hours the controller discharges the service when its Deployment names
+two different caregivers, `kyvernetria.io/primary-caregiver` and
+`kyvernetria.io/secondary-caregiver`. Until then the phase is
+NeedsCaregivers, care stays at tier 3, and a Warning event repeats every 12
+hours. With a HorizontalPodAutoscaler on the Deployment, care adds no
+replica: the autoscaler owns the count.
+
+For the stricter alerts in `deploy/addons/alerts.yaml`
+(`kyvernetria.newborn-care`), kube-state-metrics must export the care
+label: `--metric-labels-allowlist=deployments=[kyvernetria.io/care]`.
+
+### Growth and memory
+
+With metrics-server, the controller samples the service's average use per
+pod every 10 minutes during care and every hour after, keeping two weeks
+(336 samples) in `status.growth`. `kyvctl growth` adds a live measurement
+when it can. Without the metrics API, `status.growthNote` says so.
+
+The memory record of a service is written at birth and kept current while
+it lives (caregivers, the names of the Secrets and ConfigMaps it uses and of
+the services it talks to from Relationships, its pod template digest). When
+the Deployment is deleted, or replaced by one with a new UID, the record is
+closed, also when its Gestation was deleted first. Records are bounded in
+size; at 256 the oldest departures go first. To forget everything, delete
+the ConfigMap.
+
 ## Limits worth knowing
 
 - **Immunity is not a security boundary.** Anyone who can label a namespace

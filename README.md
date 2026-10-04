@@ -37,6 +37,11 @@ from the changes listed below, upstream behaviour is unchanged.
 | Capacity warnings | Silent until pods stop fitting | **Worry** controller warns at 70% of allocatable, and says when it relaxes. `kyvctl calm` folds the extra noise into a short list | Higher average neuroticism (d ≈ 0.39, self-report, large overlap): modelled as earlier vigilance |
 | Scheduling failures | `0/3 nodes are available: 3 Insufficient cpu.` | `We couldn't place shop/api yet: every node is short on CPU. We'll try again as soon as something changes. (0/3 nodes are available: 3 Insufficient cpu.)` | More social, person-directed wording (small effect). Not longer: women and men speak a similar number of words per day |
 | CLI errors | Terse | `kyvctl` explains common errors in a sentence, and after the same command fails three times within a few minutes it suggests stepping back. Its history keeps only hashes of commands, never their text | Small female advantage in emotion recognition (d ≈ 0.19); repetition is the only signal a CLI has |
+| Launching a service | Apply it and hope there is room | **Gestation**: `kyvctl conceive` reserves room ahead of the launch with placeholder pods that grow in trimester steps (any real pod preempts them, and the cluster autoscaler adds nodes for them), and screens the service every trimester: image, Secrets and ConfigMaps by name, volumes, quota, probes, requests, disruption budget. `kyvctl deliver` releases the room | Maternal plasma volume grows by about half, mostly before term |
+| The launch itself | Watch the rollout | An **Apgar score** at one and five minutes: ready replicas, restarts, warnings, endpoints, OOM kills, 0–2 each. Below 7 at five minutes the Deployment goes back to its previous revision (opt-out). `kyvctl apgar` shows it sign by sign | The Apgar score (Apgar 1953; AAP and ACOG) |
+| The first days | Like any other day | **Newborn care** for 72 hours: a priority bump that halves every 24 hours and never preempts anyone (NewbornCare admission plugin), an extra replica, a PodDisruptionBudget, stricter alerts. It goes home only to **two named caregivers** | Maternal antibodies protect a newborn and wane. Caregiving shapes fathers' brains as well as mothers' (Abraham et al. 2014): care is shared, not gendered |
+| Growth | `kubectl top`, now | `kyvctl growth`: percentile bands (3rd to 97th) from the service's own history, against its requests: "outgrowing its requests", "falling behind its own curve — check" | WHO growth charts |
+| A service that leaves | Gone without a trace | The cluster keeps a small record of every service it gave birth to: `kyvctl remember` | Fetal cells can persist in the mother for decades (Bianchi et al. 1996) |
 | Monitoring | CPU alerts | CPU alerts plus the "accompanying symptoms": latency creep, DNS jitter, slow storage ([deploy/addons/alerts.yaml](deploy/addons/alerts.yaml)) | In heart attacks chest pain is the most common symptom for both sexes, but women more often have accompanying symptoms that get missed |
 
 ## The mosaic control plane
@@ -100,7 +105,44 @@ kyvctl calm [-A] [--since 6h]       fold a flood of warnings into the few that m
 kyvctl diagnose autoimmune          workloads the Immunity plugin rejects that look like your own
 kyvctl mosaic                       which kube-apiserver allele each control-plane node expresses
 kyvctl support [--on 2027-07-01]    how long each minor the cluster runs is supported
+kyvctl conceive web --due 2026-11-01 --size 500m/512Mi --replicas 3
+                                    plan a launch: reserve room, screen every trimester
+kyvctl screen web                   prenatal screening, now
+kyvctl deliver web [--again]        launch it: release the room, score it, look after it
+kyvctl apgar web|deploy/web         the launch's Apgar scores, sign by sign
+kyvctl growth web                   its use against its own trajectory and its requests
+kyvctl remember [--all]             the services born here that have left
 ```
+
+## Gestation: launching a service
+
+A new service is planned, carried, born and looked after:
+
+```text
+$ kyvctl conceive web -n shop --due 2026-11-01 --size 500m/512Mi --replicas 3
+Conceived shop/web, due 2026-11-01 (in 28 days).
+Room for its 3 replicas, and one more for newborn care, is reserved in trimester steps.
+It is screened every trimester; for a look now: kyvctl screen web -n shop
+
+$ kubectl -n shop apply -f web.yaml        # the Deployment, paused or with replicas: 0
+$ kyvctl deliver web -n shop               # on the day
+$ kyvctl apgar web -n shop
+```
+
+Five minutes after delivery an event says, for example,
+`web arrived. Apgar 9 at five minutes. Welcome.` A launch scoring below 7
+goes back to the revision it came from. For 72 hours it is protected, and
+it goes home from newborn care once two people are named as its caregivers:
+
+```bash
+kubectl -n shop annotate deployment web kyvernetria.io/primary-caregiver=alice kyvernetria.io/secondary-caregiver=bob
+```
+
+The kyvernetria-gestation-controller in kube-controller-manager does the
+work; `kubectl get gestations` shows where each launch stands. Every amount
+and duration is an engineering choice; [docs/RESEARCH.md](docs/RESEARCH.md)
+(claims 38 to 44) says which principle each one borrows, and
+[docs/OPERATIONS.md](docs/OPERATIONS.md#gestation) what it does to a cluster.
 
 ## Build and run
 
@@ -246,6 +288,10 @@ upstream end of life, 2027-06-28, plus the 30-day upgrade grace). See
 - **StartingDose changes a pod's QoS class.** A dosed pod is Burstable, not
   BestEffort, and it counts against `requests.*` quotas, which upstream
   would have refused it under. It only acts in namespaces that opt in.
+- **Gestation reaches out.** Prenatal screening asks image registries,
+  anonymously, whether an image exists, from kube-controller-manager. It never
+  reads pull secrets; a private image is reported as "can't check". Growth
+  charts need metrics-server. See [docs/OPERATIONS.md](docs/OPERATIONS.md#gestation).
 - **Upgrades** have their own procedure, described in
   [docs/OPERATIONS.md](docs/OPERATIONS.md).
 - **Events live 30 days**, so etcd holds many more of them. Put events in a
