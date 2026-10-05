@@ -46,6 +46,32 @@ const (
 	// knows what was already said.
 	WorriedAnnotation = Prefix + "worried"
 
+	// DosingLabel opts a namespace into starting doses: containers that
+	// request nothing get a small request instead of none (sex differences
+	// in pharmacokinetics: "one dose fits all" overshoots, so start low and
+	// adjust from what you measure).
+	DosingLabel = Prefix + "dosing"
+
+	// DosingStartLow is the DosingLabel value that turns starting doses on.
+	DosingStartLow = "start-low"
+
+	// StartingDoseAnnotation records which containers got a starting dose
+	// and of what ("app=cpu,memory;sidecar=memory").
+	StartingDoseAnnotation = Prefix + "starting-dose"
+
+	// StartingDoseCPU and StartingDoseMemory are the starting doses. They
+	// are engineering choices, not research numbers: low enough to fit
+	// almost anything, high enough to lift a pod out of BestEffort and
+	// make the scheduler count it.
+	StartingDoseCPU    = "50m"
+	StartingDoseMemory = "64Mi"
+
+	// SupportGrace is how long Kyvernetria keeps supporting the upgrade
+	// off a minor after upstream's end of life: about 7% of upstream's
+	// ~14-month window, the female-to-male ratio of life expectancy at
+	// birth (WHO: 75.7 vs 70.6 years). It buys time to upgrade, not fixes.
+	SupportGrace = 30 * 24 * time.Hour
+
 	// MaxRememberedNodes bounds the remembered-nodes list.
 	MaxRememberedNodes = 16
 

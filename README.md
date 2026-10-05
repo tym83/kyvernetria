@@ -28,6 +28,8 @@ from the changes listed below, upstream behaviour is unchanged.
 | ...and its side effect | | Sometimes legitimate infrastructure is attacked: `kyvctl diagnose autoimmune` finds it | Autoimmune disease is about twice as common in women |
 | Deleting pods | `--force --grace-period=0` kills at once | **NoBruteForce**: an immediate delete of a running pod is refused until someone annotates it `kyvernetria.io/discussed=true`. A speed bump, not access control | Lower average physical aggression (moderate to large) |
 | Getting rid of a bad pod | Kill it | `kyvctl exclude pod/x`: it keeps running and stays Ready, but no Service sends it traffic | Indirect aggression shows little or no sex difference |
+| Default resource requests | A container that requests nothing gets nothing: BestEffort, counted as free, evicted first | **StartingDose**, in namespaces labelled `kyvernetria.io/dosing=start-low`: such containers get a small starting request (50m CPU, 64Mi memory). Values anyone set, including LimitRange defaults, always win | Sex differences in pharmacokinetics: at the same dose women usually reach higher drug levels (76 of 86 drugs with sex differences in pharmacokinetics), and "one dose fits all" overmedicates them; the FDA's fix for zolpidem was a lower starting dose |
+| Support window | ~14 months per minor, then end of life | Upstream's window plus 30 days of upgrade grace, about 7% longer. `kyvctl support` shows where the cluster stands. The grace brings no fixes: nobody patches a minor after upstream end of life | Female life expectancy at birth is ~7% longer (WHO: 75.7 vs 70.6 years) |
 | Termination grace period | 30 s | 300 s: pods get time to finish | Higher average agreeableness (d ≈ 0.48) |
 | Event retention | 1 hour | 30 days, with `kyvctl remember deploy/x` telling the workload's story, including pods that no longer exist | Small female advantage in episodic memory (g ≈ 0.19) |
 | Scheduling | Pods land anywhere they fit | **PlaceMemory**: the scheduler prefers nodes a workload already lived on, so caches and local volumes stay warm | Small-to-moderate, task-dependent female advantage in object-location memory |
@@ -97,6 +99,7 @@ kyvctl include pod/api-7f9c-x2kq    let it back in
 kyvctl calm [-A] [--since 6h]       fold a flood of warnings into the few that matter
 kyvctl diagnose autoimmune          workloads the Immunity plugin rejects that look like your own
 kyvctl mosaic                       which kube-apiserver allele each control-plane node expresses
+kyvctl support [--on 2027-07-01]    how long each minor the cluster runs is supported
 ```
 
 ## Build and run
@@ -221,7 +224,10 @@ follow new releases:
   pin the old defaults. Only expected values change, never test logic.
 - `x-inactivation/` is the mosaic wrapper.
 
-Supported upstream releases: v1.37.0 (Xm) and v1.36.4 (Xp).
+Supported upstream releases: v1.37.0 (Xm) and v1.36.4 (Xp). A release is
+supported as long as its older minor: until 2027-07-28 for this one (1.36's
+upstream end of life, 2027-06-28, plus the 30-day upgrade grace). See
+[docs/OPERATIONS.md](docs/OPERATIONS.md#support-window).
 
 ## Things to know before running it
 
@@ -237,6 +243,9 @@ Supported upstream releases: v1.37.0 (Xm) and v1.36.4 (Xp).
   can opt a namespace out, and NoBruteForce is only a speed bump. Keep Pod
   Security Admission and RBAC in place; Immunity does not replace them. More
   security notes are in [docs/OPERATIONS.md](docs/OPERATIONS.md).
+- **StartingDose changes a pod's QoS class.** A dosed pod is Burstable, not
+  BestEffort, and it counts against `requests.*` quotas, which upstream
+  would have refused it under. It only acts in namespaces that opt in.
 - **Upgrades** have their own procedure, described in
   [docs/OPERATIONS.md](docs/OPERATIONS.md).
 - **Events live 30 days**, so etcd holds many more of them. Put events in a
@@ -250,11 +259,11 @@ Supported upstream releases: v1.37.0 (Xm) and v1.36.4 (Xp).
 ## Not yet implemented
 
 These are mapped in [docs/RESEARCH.md](docs/RESEARCH.md) but not built yet:
-different default resource requests (sex differences in pharmacokinetics),
-sustained-load tuning (greater fatigue resistance at submaximal effort), deeper
-health checks (camouflaging), early adoption of alpha APIs with strict label
-conventions (women lead most language change from below), and a longer
-support window.
+sustained-load tuning (greater fatigue resistance at submaximal effort; the
+effect is task-specific, and we have not found a Kubernetes analogue that is
+honest and harmless, see claim 7), deeper health checks (camouflaging), and
+early adoption of alpha APIs with strict label conventions (women lead most
+language change from below).
 Log "sniffing" was dropped: the sense-of-smell advantage is small to trivial.
 
 ## Trademark and conformance

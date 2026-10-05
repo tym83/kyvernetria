@@ -167,6 +167,35 @@ When the Xp minor is older than 1.36, the `--peer-ca-file` flag also needs
 `--feature-gates=UnknownVersionInteroperabilityProxy=true`: at an emulated
 version before 1.36 the gate is off, and kube-apiserver refuses to start.
 
+## Support window
+
+Upstream supports each minor for about 14 months: 12 months of standard
+fixes, then 2 months of maintenance mode (CVEs, dependencies, critical
+bugs), then end of life (no fixes at all). Kyvernetria adds 30 days of
+**upgrade grace** after upstream end of life, about 7% of the window (see
+claims 5 and 37 in [RESEARCH.md](RESEARCH.md)). During the grace:
+
+- nothing is fixed, not even security bugs, because there is no upstream
+  fix to rebuild from;
+- the minor stays in Kyvernetria's CI matrix, so its release still builds
+  and its tests still run;
+- the upgrade off it, as described above, is still supported.
+
+After the grace the minor leaves the CI matrix.
+
+A release runs two minors, so it is supported as long as its **older** one
+(Xp). The current release, (1.37, 1.36), is supported until 2027-07-28:
+1.36 reaches upstream end of life on 2027-06-28. That is four months less
+than 1.37 alone would get; it is the price of the mosaic. Plan each upgrade
+for before Xp's upstream end of life, and treat the grace as a buffer.
+
+`kyvctl support` reads the binary version of every apiserver (the code that
+runs, not an emulated version) and every kubelet, and prints each minor's
+stage: supported, maintenance mode, upgrade grace, out of support. It exits
+non-zero once a minor in use is out of support, so it can run in CI or a
+CronJob. `--on 2027-07-01` shows what it will say on a given day. Its dates
+are compiled in; a minor newer than its table is reported as unknown.
+
 ## Restarting without dropping requests
 
 Every node reaches the apiservers through its own haproxy
@@ -218,6 +247,15 @@ full main etcd stops the cluster. A full events etcd only loses events.
 - **NoBruteForce is a speed bump.** It stops a reflexive
   `--force --grace-period=0`. Anyone who can annotate the pod can bypass it.
   It is a prompt to think, not an access control.
+- **StartingDose fills gaps, nothing else.** It runs after LimitRanger, so a
+  LimitRange `defaultRequest` wins, and before mutating webhooks, which may
+  change its values. It doses only new pods in namespaces labelled
+  `kyvernetria.io/dosing=start-low`, only for CPU and memory the container
+  states nothing about, and skips pods with pod-level resources and mirror
+  pods. A dosed pod is Burstable instead of BestEffort and counts against
+  `requests.*` quotas. The `kyvernetria.io/starting-dose` annotation says
+  which containers were dosed. The starting dose is a floor to start from;
+  size requests from measured use (`kubectl top`, a vertical autoscaler).
 - **Two builds are diverse, not independent.** Much of the code is shared
   between adjacent minors, and emulation makes them serve the same API. Bugs
   in shared code hit both alleles.

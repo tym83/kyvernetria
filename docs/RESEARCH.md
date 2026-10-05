@@ -6,7 +6,8 @@ described accurately. This document lists each claim we use, whether the
 literature supports it, the corrected wording and numbers, and where they come
 from.
 
-Last verified: 2026-09-24. All numbers below were checked against the cited
+Last verified: 2026-09-24; claims 7 and 8 and the new claim 37 re-checked
+on 2026-10-04 (claim 5 only gained arithmetic on its verified numbers). All numbers below were checked against the cited
 primary source (abstract or full text) or, where marked, against a reliable
 secondary summary of it. Nothing here is taken from memory.
 
@@ -142,6 +143,14 @@ innate or fixed.
   years (10.7 years) in Rosstat data for 2023. Much of the Russian gap reflects
   male alcohol use, smoking, injuries and cardiovascular mortality, not biology
   alone.
+- **How Kyvernetria uses it:** as a ratio, not as years. Female life
+  expectancy at birth is about 7% longer than male (75.7 / 70.6 = 1.072 in
+  2019; 74.0 / 68.9 = 1.074 in 2021). Kyvernetria's support for a Kubernetes
+  minor lasts about 7% longer than upstream's ~14-month window (claim 37):
+  30 days after upstream end of life. A life-expectancy gap is a statement
+  about populations under particular living conditions, and the Russian gap
+  shows how much of it is behaviour and environment; the feature borrows
+  only the proportion.
 - **Sources:**
   - WHO Global Health Observatory, indicator WHOSIS_000001 (life expectancy at birth), Global Health Estimates 2021. https://www.who.int/data/gho/data/indicators/indicator-details/GHO/life-expectancy-at-birth-(years) (values retrieved via the GHO OData API)
   - Rosstat data as reported by Demoscope Weekly (HSE Institute of Demography), 2025. https://www.demoscope.ru/weekly/2025/01069/barom04.php
@@ -180,6 +189,13 @@ innate or fixed.
   gap favouring men remains among top finishers (Sitko et al., 2025). Use
   "less fatigable at sustained submaximal effort", never "better at
   ultra-endurance".
+- **Why it is not built yet (2026-10-04):** the finding stands, but the
+  reviews describe it as task-specific (isometric tasks, some muscle groups,
+  lower intensities) and we found no pooled effect size. The obvious
+  Kubernetes analogue, scaling up later under sustained load, would make a
+  cluster respond more slowly to real demand, which nothing in this
+  research justifies. Software does not tire, so until there is an
+  analogue that is both honest and harmless, the feature stays unbuilt.
 - **Sources:**
   - Hunter, S. K. (2014). Sex differences in human fatigability: mechanisms and insight to physiological responses. *Acta Physiologica*, 210(4), 768–789. https://doi.org/10.1111/apha.12234
   - Hunter, S. K. (2016). The relevance of sex differences in performance fatigability. *Medicine & Science in Sports & Exercise*, 48(11), 2247–2256. https://doi.org/10.1249/MSS.0000000000000928
@@ -200,9 +216,38 @@ innate or fixed.
   same dose usually had higher blood concentrations and slower elimination.
   For 96% of drugs with higher values in women, women also had more adverse
   drug reactions (Zucker & Prendergast, 2020).
+- **More detail (checked 2026-10-04):** In Zucker & Prendergast's sample, 76
+  of the 86 drugs (88%) had higher pharmacokinetic values in women. Their
+  conclusion: "The common practice of prescribing equal drug doses to women
+  and men neglects sex differences in pharmacokinetics and dimorphisms in
+  body weight, risks overmedication of women, and contributes to
+  female-biased adverse drug reactions." Body size is not the whole story:
+  correcting for height, weight, surface area or body composition removed
+  only a minority of the sex differences. They propose body-weight-adjusted
+  dosing for women and men alike, and evidence-based dose reductions for
+  women. A narrative review puts women's risk of an adverse drug reaction at
+  1.5 to 1.7 times men's, with pharmacokinetic, immunological and hormonal
+  factors and differences in medication use all contributing (Rademaker,
+  2001; a review, not a pooled estimate). Of the 10 prescription drugs
+  withdrawn from the U.S. market between January 1997 and the GAO's report
+  in January 2001, 8 posed
+  greater health risks for women; for 4 of them this may reflect that women
+  were prescribed them more often (GAO, 2001).
+- **How Kyvernetria uses it:** as a principle, not a number. A flat dose
+  calibrated on one population overshoots another; the FDA's fix for
+  zolpidem was a lower **starting** dose, with the advice to consider it for
+  men as well. Kyvernetria's StartingDose admission plugin gives containers
+  that request nothing a small starting request, in namespaces that opt in.
+  The amounts (50m CPU, 64Mi memory) are engineering choices: there is no
+  container equivalent of a milligram per kilogram, and sizing requests
+  from measured use is what a vertical autoscaler does. The plugin is
+  opt-in because the research is about averages, not about any particular
+  workload.
 - **Sources:**
   - U.S. FDA (2013). Drug Safety Communication: Risk of next-morning impairment after use of insomnia drugs; FDA requires lower recommended doses for certain drugs containing zolpidem. https://www.fda.gov/drugs/drug-safety-and-availability/questions-and-answers-risk-next-morning-impairment-after-use-insomnia-drugs-fda-requires-lower
-  - Zucker, I., & Prendergast, B. J. (2020). Sex differences in pharmacokinetics predict adverse drug reactions in women. *Biology of Sex Differences*, 11. https://doi.org/10.1186/s13293-020-00308-5
+  - Zucker, I., & Prendergast, B. J. (2020). Sex differences in pharmacokinetics predict adverse drug reactions in women. *Biology of Sex Differences*, 11, 32. https://doi.org/10.1186/s13293-020-00308-5 (full text: https://pmc.ncbi.nlm.nih.gov/articles/PMC7275616/)
+  - Rademaker, M. (2001). Do women have more adverse drug reactions? *American Journal of Clinical Dermatology*, 2(6), 349–351. https://doi.org/10.2165/00128071-200102060-00001
+  - U.S. General Accounting Office (2001). Drug Safety: Most Drugs Withdrawn in Recent Years Had Greater Health Risks for Women (GAO-01-286R). https://www.gao.gov/products/GAO-01-286R
 
 ### 9. Heart attack symptoms
 
@@ -649,6 +694,32 @@ innate or fixed.
   - Avizienis, A. (1985). The N-version approach to fault-tolerant software. *IEEE Transactions on Software Engineering*, SE-11(12), 1491–1501. https://doi.org/10.1109/TSE.1985.231893
   - Knight, J. C., & Leveson, N. G. (1986). An experimental evaluation of the assumption of independence in multiversion programming. *IEEE Transactions on Software Engineering*, SE-12(1), 96–109. https://doi.org/10.1109/TSE.1986.6312924
 
+### 37. Kubernetes patch-support window
+
+- **Claim:** Upstream supports each Kubernetes minor for about 14 months.
+- **Verdict:** SUPPORTED
+- **Wording:** "The Kubernetes Community will support active patch release
+  series for a period of roughly fourteen (14) months": twelve months of
+  standard support, then two months of maintenance mode in which only
+  CVE-assigned vulnerabilities, dependency issues and critical core bugs are
+  fixed. After that the series is end of life: no fixes, not even security
+  fixes. Upstream maintains the three most recent minors. Dates used by
+  `kyvctl support` (retrieved 2026-10-04): 1.34 maintenance 2026-08-27, end
+  of life 2026-10-27; 1.35 2026-12-28 / 2027-02-28; 1.36 2027-04-28 /
+  2027-06-28; 1.37 2027-08-28 / 2027-10-28; 1.33 and 1.32 reached end of life
+  on 2026-06-28 and 2026-02-28.
+- **What this means for Kyvernetria:** a mosaic release runs two minors, so
+  it is supported only as long as the older one (Xp). That is about four
+  months less than its newer minor alone. Kyvernetria cannot honestly
+  extend patching past upstream end of life: that would mean backporting
+  fixes nobody upstream makes. The longer window is therefore an upgrade
+  grace, during which the minor stays buildable and tested and the upgrade
+  off it stays supported, with no fixes.
+- **Sources:**
+  - Kubernetes. Patch Releases: Support Period. https://kubernetes.io/releases/patch-releases/
+  - Kubernetes. Releases. https://kubernetes.io/releases/
+  - KEP-1498: Kubernetes yearly support period. https://git.k8s.io/enhancements/keps/sig-release/1498-kubernetes-yearly-support-period/README.md
+
 ### Intro reference
 
 - Hyde, J. S. (2005). The gender similarities hypothesis. *American Psychologist*, 60(6), 581–592. https://doi.org/10.1037/0003-066X.60.6.581
@@ -668,10 +739,10 @@ should consider removing the feature.
 | 2 | Red-green CVD ~8% of men vs ~0.5% of women (one bad copy is covered by the other) | Resistance to single-build bugs | OK |
 | 4 | Stronger average immune responses | Strict admission plugin | OK |
 | 4 | Autoimmunity ~2× more common in women (not "80%") | Admission false-positive diagnostics | OK. Update the number in docs. |
-| 5 | Female life-expectancy advantage ~5 years globally | Longer support window | OK |
-| 7 | Less fatigable at sustained submaximal effort (not better at ultra-endurance) | Sustained-load tuning, gentle burst scaling | OK for sustained load. Do not advertise as "ultra-endurance". |
+| 5, 37 | Female life expectancy ~7% longer at birth (75.7 vs 70.6 years) | Support lasts ~7% longer than upstream's ~14-month window: 30 days of upgrade grace after upstream end of life (`kyvctl support`) | OK. Borrow the ratio only; the grace carries no fixes. |
+| 7 | Less fatigable at sustained submaximal effort (not better at ultra-endurance) | Sustained-load tuning, gentle burst scaling | Not built. Basis OK but task-specific; no honest, harmless Kubernetes analogue yet (see claim 7). Never "ultra-endurance". |
 | 9 | Women more often have accompanying non-chest-pain symptoms (chest pain still most common) | Alert rules on latency and jitter as well as CPU | REVIEW. Keep CPU alerts; add latency/jitter rather than replacing CPU ("atypical" wording discouraged). |
-| 8 | Sex differences in pharmacokinetics; FDA zolpidem dose change | Different default resource defaults | OK |
+| 8 | Sex differences in pharmacokinetics; "one dose fits all" overmedicates women; FDA lowered zolpidem's starting dose | StartingDose: opt-in starting requests for containers that request nothing | OK. A principle (start low, adjust), not a dose: the amounts are engineering choices. |
 | 10 | Women slightly better at smell, effect trivial to small (g 0.08–0.30) | Log anomaly sniffing | REVIEW. The basis is a trivial effect, so the joke works but the "advantage" framing should be modest. |
 | 15 | Small female advantage in episodic memory (g ≈ 0.19) | 30-day event retention | OK |
 | 16 | Small-to-moderate, task-dependent female advantage in object-location memory (male advantage on some tasks) | Scheduler remembers pod placement | OK. Describe as task-dependent. |
