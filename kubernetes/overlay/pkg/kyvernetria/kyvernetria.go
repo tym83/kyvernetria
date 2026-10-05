@@ -72,6 +72,36 @@ const (
 	// birth (WHO: 75.7 vs 70.6 years). It buys time to upgrade, not fixes.
 	SupportGrace = 30 * 24 * time.Hour
 
+	// SystemNamespace holds what Kyvernetria keeps for the cluster as a
+	// whole, such as the memory of services that have left.
+	SystemNamespace = "kyvernetria-system"
+
+	// PlacentaLabel marks the placeholder pods that hold room for a service
+	// before its launch; the value is the Gestation's name.
+	PlacentaLabel = Prefix + "placenta"
+
+	// CareLabel is set to CareNewborn on a Deployment during newborn care,
+	// so alert rules can treat it more strictly.
+	CareLabel   = Prefix + "care"
+	CareNewborn = "newborn"
+
+	// NewbornCareAnnotation on a namespace lists the newborn workloads in
+	// it (their pod selectors) and the priority class their new pods get.
+	// The gestation controller writes it; the NewbornCare admission plugin
+	// reads it.
+	NewbornCareAnnotation = Prefix + "newborn-care"
+
+	// PrimaryCaregiverAnnotation and SecondaryCaregiverAnnotation name the
+	// two people on call for a service. Newborn care ends only when both
+	// are set, to two different people.
+	PrimaryCaregiverAnnotation   = Prefix + "primary-caregiver"
+	SecondaryCaregiverAnnotation = Prefix + "secondary-caregiver"
+
+	// NewbornCareDuration is how long a newborn service is protected after
+	// its launch. Engineering choice; the taper follows the waning of
+	// maternal IgG in infants, months compressed into hours.
+	NewbornCareDuration = 72 * time.Hour
+
 	// MaxRememberedNodes bounds the remembered-nodes list.
 	MaxRememberedNodes = 16
 

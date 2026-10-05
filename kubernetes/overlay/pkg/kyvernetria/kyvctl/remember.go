@@ -27,6 +27,7 @@ import (
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,18 +39,33 @@ import (
 )
 
 func newRememberCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *cobra.Command {
-	return &cobra.Command{
-		Use:   "remember TYPE/NAME",
-		Short: "Tell the story of a workload: everything that happened to it and its pods",
+	var all bool
+	c := &cobra.Command{
+		Use:   "remember [TYPE/NAME]",
+		Short: "Tell the story of a workload, or, with no arguments, remember the services that have left",
 		Long: "Kyvernetria keeps events for 30 days instead of one hour (episodic memory).\n" +
-			"remember shows them as one timeline for the object, its ReplicaSets and its pods,\n" +
-			"including pods that no longer exist, plus the nodes it has lived on.",
-		Example: "  kyvctl remember deploy/api\n  kyvctl remember sts/db -n shop",
-		Args:    cobra.ExactArgs(1),
+			"remember TYPE/NAME shows them as one timeline for the object, its ReplicaSets and its pods,\n" +
+			"including pods that no longer exist, plus the nodes it has lived on. A workload that is gone\n" +
+			"is remembered from its events for 30 days.\n\n" +
+			"With no arguments it lists the services this cluster gave birth to (kyvctl deliver) and that\n" +
+			"have since left: when they were born and left, their caregivers, what they depended on\n" +
+			"(names only) and their last configuration digest. The cluster keeps a little of each.",
+		Example: "  kyvctl remember deploy/api\n  kyvctl remember sts/db -n shop\n  kyvctl remember\n  kyvctl remember --all",
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				client, err := f.KubernetesClientSet()
+				cmdutil.CheckErr(err)
+				records, err := Memory(cmd.Context(), client)
+				cmdutil.CheckErr(err)
+				renderMemory(streams.Out, records, all)
+				return
+			}
 			cmdutil.CheckErr(runRemember(cmd.Context(), f, streams.Out, args[0]))
 		},
 	}
+	c.Flags().BoolVar(&all, "all", false, "With no TYPE/NAME: also list the services born here that are still here")
+	return c
 }
 
 func runRemember(ctx context.Context, f cmdutil.Factory, out io.Writer, target string) error {
@@ -110,39 +126,54 @@ const pageSize = 500
 func collectStory(ctx context.Context, client kubernetes.Interface, ns, kind, name string) (*story, error) {
 	s := &story{title: fmt.Sprintf("%s %s/%s", kind, ns, name)}
 	uids := map[types.UID]bool{}
+	// A workload that is gone still has a story: its events stay for 30
+	// days, and they are found by name. Only with no events at all is it
+	// "not found".
+	var gone error
+	found := func(err error) (bool, error) {
+		if apierrors.IsNotFound(err) {
+			gone = err
+			return false, nil
+		}
+		return err == nil, err
+	}
 	apps := client.AppsV1()
 	var descendantKinds []string // event kinds that may concern a descendant
 	switch kind {
 	case "Deployment":
 		d, err := apps.Deployments(ns).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
+		if here, err := found(err); err != nil {
 			return nil, err
+		} else if here {
+			uids[d.UID] = true
+			s.homes = placement.Decode(d.Annotations)
 		}
-		uids[d.UID] = true
-		s.homes = placement.Decode(d.Annotations)
 		descendantKinds = []string{"ReplicaSet", "Pod"}
 	case "StatefulSet":
 		st, err := apps.StatefulSets(ns).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
+		if here, err := found(err); err != nil {
 			return nil, err
+		} else if here {
+			uids[st.UID] = true
+			s.homes = ordinalHomes(name, placement.DecodeOrdinals(st.Annotations))
 		}
-		uids[st.UID] = true
-		s.homes = ordinalHomes(name, placement.DecodeOrdinals(st.Annotations))
 		descendantKinds = []string{"Pod"}
 	case "DaemonSet":
 		d, err := apps.DaemonSets(ns).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
+		if here, err := found(err); err != nil {
 			return nil, err
+		} else if here {
+			uids[d.UID] = true
 		}
-		uids[d.UID] = true
 		descendantKinds = []string{"Pod"}
 	case "ReplicaSet":
 		rs, err := apps.ReplicaSets(ns).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
+		if here, err := found(err); err != nil {
 			return nil, err
+		} else if here {
+			uids[rs.UID] = true
+			s.homes = placement.Decode(rs.Annotations)
 		}
-		uids[rs.UID] = true
-		s.homes = placement.Decode(rs.Annotations)
 		descendantKinds = []string{"Pod"}
 	case "Node":
 		ns = metav1.NamespaceAll
@@ -174,6 +205,12 @@ func collectStory(ctx context.Context, client kubernetes.Interface, ns, kind, na
 		if err != nil {
 			return nil, err
 		}
+	}
+	if gone != nil {
+		if len(s.events) == 0 {
+			return nil, gone
+		}
+		s.title += " (no longer here)"
 	}
 	sort.SliceStable(s.events, func(i, j int) bool { return eventTime(s.events[i]).Before(eventTime(s.events[j])) })
 	return s, nil

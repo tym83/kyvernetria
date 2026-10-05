@@ -263,6 +263,22 @@ items:
       rbac.authorization.kubernetes.io/autoupdate: "true"
     labels:
       kubernetes.io/bootstrapping: rbac-defaults
+    name: system:controller:kyvernetria-gestation
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:controller:kyvernetria-gestation
+  subjects:
+  - kind: ServiceAccount
+    name: kyvernetria-gestation
+    namespace: kube-system
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    annotations:
+      rbac.authorization.kubernetes.io/autoupdate: "true"
+    labels:
+      kubernetes.io/bootstrapping: rbac-defaults
     name: system:controller:kyvernetria-place-memory
   roleRef:
     apiGroup: rbac.authorization.k8s.io

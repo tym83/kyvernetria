@@ -60,3 +60,37 @@ spec:
           labels: {severity: warning}
           annotations:
             summary: "etcd requests from the apiserver take over 500ms at p99. Everything will feel slow soon."
+    # Newborn care (Gestation): for 72 hours after `kyvctl deliver` the
+    # Deployment carries the label kyvernetria.io/care=newborn, and these
+    # rules look at it sooner than ordinary ones would. kube-state-metrics
+    # exports that label only when allowed to:
+    #   --metric-labels-allowlist=deployments=[kyvernetria.io/care]
+    # (kube-prometheus-stack: kube-state-metrics.metricLabelsAllowlist).
+    # Without it these rules never fire.
+    - name: kyvernetria.newborn-care
+      rules:
+        - alert: NewbornUnavailable
+          expr: |
+            (kube_deployment_spec_replicas - kube_deployment_status_replicas_available) > 0
+              and on (namespace, deployment) kube_deployment_labels{label_kyvernetria_io_care="newborn"}
+          for: 2m
+          labels: {severity: critical, care: newborn}
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.deployment }} was born less than 72 hours ago and is missing replicas. In its first days we look sooner."
+        - alert: NewbornRestarting
+          expr: |
+            sum by (namespace, deployment) (
+              label_replace(
+                sum by (namespace, owner_name) (
+                  increase(kube_pod_container_status_restarts_total[10m])
+                    * on (namespace, pod) group_left(owner_name) kube_pod_owner{owner_kind="ReplicaSet"}
+                ),
+                "replicaset", "$1", "owner_name", "(.*)"
+              )
+              * on (namespace, replicaset) group_left(deployment)
+                label_replace(kube_replicaset_owner{owner_kind="Deployment"}, "deployment", "$1", "owner_name", "(.*)")
+            ) > 0
+              and on (namespace, deployment) kube_deployment_labels{label_kyvernetria_io_care="newborn"}
+          labels: {severity: warning, care: newborn}
+          annotations:
+            summary: "A container of newborn {{ $labels.namespace }}/{{ $labels.deployment }} restarted in the last 10 minutes."
