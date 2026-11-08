@@ -119,12 +119,11 @@ func newConceiveCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *
 
 // Conceive validates the options and creates the Gestation.
 func Conceive(ctx context.Context, dyn dynamic.Interface, ns, name string, o ConceiveOptions, now time.Time) (*api.Gestation, error) {
-	due, err := time.Parse(time.DateOnly, o.Due)
-	if err != nil {
+	if _, err := time.Parse(time.DateOnly, o.Due); err != nil {
 		return nil, fmt.Errorf("--due needs a date like 2026-11-01")
 	}
-	if !due.After(now) {
-		return nil, fmt.Errorf("the due date %s is not in the future", o.Due)
+	if _, err := (&api.Spec{Due: o.Due}).DueSince(now); err != nil {
+		return nil, fmt.Errorf("--due: %w", err)
 	}
 	cpu, mem, ok := strings.Cut(o.Size, "/")
 	if !ok {
@@ -167,8 +166,11 @@ func Conceive(ctx context.Context, dyn dynamic.Interface, ns, name string, o Con
 
 func renderConceived(out io.Writer, g *api.Gestation, now time.Time) {
 	due, _ := g.Spec.DueTime()
-	days := int(due.Sub(now).Hours()/24) + 1
-	fmt.Fprintf(out, "Conceived %s/%s, due %s (in %s).\n", g.Namespace, g.Name, g.Spec.Due, plural(days, "day"))
+	when := "today"
+	if days := int(due.Sub(api.Day(now)).Hours() / 24); days > 0 {
+		when = "in " + plural(days, "day")
+	}
+	fmt.Fprintf(out, "Conceived %s/%s, due %s (%s).\n", g.Namespace, g.Name, g.Spec.Due, when)
 	fmt.Fprintf(out, "Room for its %d replicas, and one more for newborn care, is reserved in trimester steps.\n", g.Spec.Replicas)
 	fmt.Fprintf(out, "It is screened every trimester; for a look now: kyvctl screen %s -n %s\n", g.Name, g.Namespace)
 }

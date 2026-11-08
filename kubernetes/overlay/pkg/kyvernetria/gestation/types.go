@@ -219,6 +219,30 @@ func (s *Spec) DueTime() (time.Time, error) {
 	return t, nil
 }
 
+// DueSince parses the due date and checks it against the moment of
+// conception: it is a calendar day (UTC, like DueTime), and that day is
+// the day of conception or later. A due date of today is valid: the room
+// is reserved in full at once and the service can be delivered whenever it
+// is ready. A day before conception is a mistake, not a plan. kyvctl
+// conceive checks this before it creates a Gestation and the controller
+// checks it against the creation time, so both accept the same dates.
+func (s *Spec) DueSince(conceived time.Time) (time.Time, error) {
+	due, err := s.DueTime()
+	if err != nil {
+		return time.Time{}, err
+	}
+	if day := Day(conceived); due.Before(day) {
+		return time.Time{}, fmt.Errorf("due date %s is before the day it was conceived, %s (UTC)", s.Due, day.Format(time.DateOnly))
+	}
+	return due, nil
+}
+
+// Day is midnight UTC of the day t falls on in UTC.
+func Day(t time.Time) time.Time {
+	y, m, d := t.UTC().Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
 // Born reports whether the service has been born and is still the one
 // that was (not rolled back).
 func (g *Gestation) Born() bool {
