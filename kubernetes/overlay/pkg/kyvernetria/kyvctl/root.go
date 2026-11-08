@@ -38,6 +38,7 @@ var ownCommands = map[string]bool{
 	"remember": true, "relationships": true, "rels": true, "exclude": true,
 	"include": true, "calm": true, "diagnose": true, "mosaic": true, "support": true,
 	"conceive": true, "screen": true, "deliver": true, "apgar": true, "growth": true,
+	"checkup": true,
 }
 
 // invokesOwnCommand reports whether the command line runs one of kyvctl's
@@ -161,6 +162,7 @@ func newCommand(streams genericiooptions.IOStreams, args []string) *cobra.Comman
 		newDeliverCommand(f, streams),
 		newApgarCommand(f, streams),
 		newGrowthCommand(f, streams),
+		newCheckupCommand(f, streams),
 	} {
 		root.AddCommand(c)
 	}

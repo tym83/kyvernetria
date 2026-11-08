@@ -42,6 +42,7 @@ from the changes listed below, upstream behaviour is unchanged.
 | The first days | Like any other day | **Newborn care** for 72 hours: a priority bump that halves every 24 hours and never preempts anyone (NewbornCare admission plugin), an extra replica, a PodDisruptionBudget, stricter alerts. It goes home only to **two named caregivers** | Maternal antibodies protect a newborn and wane. Caregiving shapes fathers' brains as well as mothers' (Abraham et al. 2014): care is shared, not gendered |
 | Growth | `kubectl top`, now | `kyvctl growth`: percentile bands (3rd to 97th) from the service's own history, against its requests: "outgrowing its requests", "falling behind its own curve — check" | WHO growth charts |
 | A service that leaves | Gone without a trace | The cluster keeps a small record of every service it gave birth to: `kyvctl remember` | Fetal cells can persist in the mother for decades (Bianchi et al. 1996) |
+| Health checks | Ready means healthy | `kyvctl checkup` looks past Ready: in Ready pods it finds containers that restarted in the last hour, a last exit by OOM kill, and readiness probes that cannot see the application (none, an open port only, or a command that always succeeds) | Autism in girls and women is under-diagnosed, partly because it often presents in ways current criteria were not built to see, camouflaging among them (evidence still developing) |
 | Monitoring | CPU alerts | CPU alerts plus the "accompanying symptoms": latency creep, DNS jitter, slow storage ([deploy/addons/alerts.yaml](deploy/addons/alerts.yaml)) | In heart attacks chest pain is the most common symptom for both sexes, but women more often have accompanying symptoms that get missed |
 
 ## The mosaic control plane
@@ -112,6 +113,7 @@ kyvctl deliver web [--again]        launch it: release the room, score it, look 
 kyvctl apgar web|deploy/web         the launch's Apgar scores, sign by sign
 kyvctl growth web                   its use against its own trajectory and its requests
 kyvctl remember [--all]             the services born here that have left
+kyvctl checkup [-A] [-l selector]   Ready pods that show what Ready doesn't
 ```
 
 ## Gestation: launching a service
@@ -333,12 +335,13 @@ upstream end of life, 2027-06-28, plus the 30-day upgrade grace). See
 
 ## Not yet implemented
 
-These are mapped in [docs/RESEARCH.md](docs/RESEARCH.md) but not built yet:
+These are mapped in [docs/RESEARCH.md](docs/RESEARCH.md) but not built:
 sustained-load tuning (greater fatigue resistance at submaximal effort; the
 effect is task-specific, and we have not found a Kubernetes analogue that is
-honest and harmless, see claim 7), deeper health checks (camouflaging), and
-early adoption of alpha APIs with strict label conventions (women lead most
-language change from below).
+honest and harmless, see claim 7), and early adoption of alpha APIs with
+strict label conventions (women lead most language change from below; we
+found no version of it that is both faithful to the claim and safe for a
+cluster, see claim 31).
 Log "sniffing" was dropped: the sense-of-smell advantage is small to trivial.
 
 ## Trademark and conformance
