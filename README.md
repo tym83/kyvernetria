@@ -192,6 +192,33 @@ Four nodes on one machine need about 8 GB for Docker and raised inotify limits
 (`fs.inotify.max_user_instances=512`, `fs.inotify.max_user_watches=524288`).
 The kind config runs etcd without fsync; use it only for throwaway clusters.
 
+### On kuberoot
+
+Kyvernetria is also a distribution of [kuberoot](https://github.com/kuberoot-dev/kuberoot),
+an immutable OS for Kubernetes nodes: `distro/kuberoot/kyvernetria` holds the
+distribution and `hack/kuberoot.sh` overlays it onto a kuberoot checkout and
+drives kuberoot's own builder:
+
+```bash
+hack/kuberoot.sh build amd64                        # Kyvernetria's binaries, then kuberoot's image
+hack/kuberoot.sh media amd64 kuberoot.datastore=etcd   # etcd, so more control planes can join
+hack/kuberoot.sh node kyv-cp-1 amd64
+```
+
+The image carries both kube-apiserver alleles and Kyvernetria's Xp builds
+of every other component. There is no wrapper and no static pod: kinit,
+kuberoot's PID 1, supervises kube-apiserver as one of kuberoot's service
+alternatives. It silences one allele at random on each node's first boot
+and keeps the choice, and it escapes a crash-looping allele to the other.
+The node publishes its choice as the label
+`alternative.kuberoot.dev/kube-apiserver`, which `kyvctl mosaic` reads, and
+in `kubectl get nodeservices kube-apiserver` (`status.alternative`). Join
+two more control planes as kuberoot describes, and the cluster is a mosaic.
+This path needs a kuberoot with service alternatives
+([kuberoot-dev/kuberoot#46](https://github.com/kuberoot-dev/kuberoot/pull/46));
+the differences from the kubeadm path are in
+[docs/OPERATIONS.md](docs/OPERATIONS.md#on-kuberoot).
+
 ## What it looks like
 
 From a run on four VMs (September 2026). Each control-plane node picked its
@@ -264,7 +291,9 @@ follow new releases:
   Kyvernetria tree.
 - `hack/update-test-expectations.sh <tree>` updates upstream unit tests that
   pin the old defaults. Only expected values change, never test logic.
-- `x-inactivation/` is the mosaic wrapper.
+- `x-inactivation/` is the mosaic wrapper (kubeadm path).
+- `distro/kuberoot/kyvernetria/` is the kuberoot distribution and
+  `hack/kuberoot.sh` builds it.
 
 Supported upstream releases: v1.37.2 (Xm) and v1.36.6 (Xp). A release is
 supported as long as its older minor: until 2027-07-28 for this one (1.36's

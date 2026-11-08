@@ -50,8 +50,17 @@ func newMosaicCommand(f cmdutil.Factory, streams genericiooptions.IOStreams) *co
 
 type cell struct {
 	node, version, emulated, allele, note string
-	restarts                              int32
+	// chosen is the allele the node records for itself (on kuberoot, the
+	// node label kinit's choice is published as); empty when only the
+	// version tells.
+	chosen   string
+	restarts int32
 }
+
+// ChoiceLabel is the label a kuberoot node carries for the kube-apiserver
+// build its kinit chose at first boot: kuberoot's service alternatives,
+// which run the mosaic there (distro/kuberoot/kyvernetria).
+const ChoiceLabel = "alternative.kuberoot.dev/kube-apiserver"
 
 func runMosaic(ctx context.Context, f cmdutil.Factory, out io.Writer) error {
 	client, err := f.KubernetesClientSet()
@@ -66,13 +75,19 @@ func runMosaic(ctx context.Context, f cmdutil.Factory, out io.Writer) error {
 	return nil
 }
 
-// apiserverCells asks every kube-apiserver pod in kube-system for its
-// /version, through the pod proxy, so that each apiserver answers for
-// itself rather than whichever one the load balancer picks.
+// apiserverCells asks every apiserver for its /version, so that each
+// answers for itself rather than whichever one the load balancer picks:
+// the kube-apiserver pods in kube-system through the pod proxy (kubeadm),
+// or, where the control plane runs as node services and there are no such
+// pods (kuberoot), each node labelled with its choice through the node
+// proxy.
 func apiserverCells(ctx context.Context, client kubernetes.Interface) ([]cell, error) {
 	pods, err := client.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{LabelSelector: "component=kube-apiserver"})
 	if err != nil {
 		return nil, err
+	}
+	if len(pods.Items) == 0 {
+		return labelledCells(ctx, client)
 	}
 	var cells []cell
 	for _, pod := range pods.Items {
@@ -83,28 +98,61 @@ func apiserverCells(ctx context.Context, client kubernetes.Interface) ([]cell, e
 		raw, err := client.CoreV1().RESTClient().Get().
 			AbsPath("/api/v1/namespaces/kube-system/pods", "https:"+pod.Name+":6443", "proxy", "version").
 			DoRaw(ctx)
-		if err != nil {
-			c.note = "not answering: " + firstLine(err.Error())
-		} else {
-			// gitVersion is the binary's version even when the apiserver
-			// runs with --emulated-version; the emulated one is reported
-			// separately.
-			var v struct {
-				GitVersion     string `json:"gitVersion"`
-				EmulationMajor string `json:"emulationMajor"`
-				EmulationMinor string `json:"emulationMinor"`
-			}
-			if err := json.Unmarshal(raw, &v); err != nil {
-				c.note = "unreadable /version"
-			}
-			c.version = v.GitVersion
-			if v.EmulationMajor != "" && v.EmulationMinor != "" {
-				c.emulated = v.EmulationMajor + "." + v.EmulationMinor
-			}
-		}
+		c.readVersion(raw, err)
 		cells = append(cells, c)
 	}
 	return cells, nil
+}
+
+// labelledCells reads the mosaic from the nodes' own records of their
+// choice, and each apiserver's version through the node proxy.
+func labelledCells(ctx context.Context, client kubernetes.Interface) ([]cell, error) {
+	cells, err := choiceCells(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+	for i := range cells {
+		raw, err := client.CoreV1().RESTClient().Get().
+			AbsPath("/api/v1/nodes", "https:"+cells[i].node+":6443", "proxy", "version").
+			DoRaw(ctx)
+		cells[i].readVersion(raw, err)
+	}
+	return cells, nil
+}
+
+// choiceCells lists the nodes that record a kube-apiserver choice.
+func choiceCells(ctx context.Context, client kubernetes.Interface) ([]cell, error) {
+	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: ChoiceLabel})
+	if err != nil {
+		return nil, err
+	}
+	var cells []cell
+	for _, n := range nodes.Items {
+		cells = append(cells, cell{node: n.Name, chosen: n.Labels[ChoiceLabel]})
+	}
+	return cells, nil
+}
+
+// readVersion fills in what an apiserver's /version says.
+func (c *cell) readVersion(raw []byte, err error) {
+	if err != nil {
+		c.note = "not answering: " + firstLine(err.Error())
+		return
+	}
+	// gitVersion is the binary's version even when the apiserver runs with
+	// --emulated-version; the emulated one is reported separately.
+	var v struct {
+		GitVersion     string `json:"gitVersion"`
+		EmulationMajor string `json:"emulationMajor"`
+		EmulationMinor string `json:"emulationMinor"`
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		c.note = "unreadable /version"
+	}
+	c.version = v.GitVersion
+	if v.EmulationMajor != "" && v.EmulationMinor != "" {
+		c.emulated = v.EmulationMajor + "." + v.EmulationMinor
+	}
 }
 
 // minorOf parses the major.minor of a version; ok is false for anything
@@ -162,23 +210,31 @@ func firstLine(s string) string {
 
 func renderMosaic(out io.Writer, cells []cell) {
 	if len(cells) == 0 {
-		fmt.Fprintln(out, "I can't see any apiserver pods in kube-system; this doesn't look like a kubeadm-style control plane.")
+		fmt.Fprintln(out, "I can't see any apiserver pods in kube-system, nor nodes labelled "+ChoiceLabel+
+			"; this doesn't look like a Kyvernetria control plane.")
 		return
 	}
 	sort.Slice(cells, func(i, j int) bool { return cells[i].node < cells[j].node })
 	versions := make([]string, len(cells))
-	silent := 0
+	silent, recorded := 0, 0
 	for i, c := range cells {
 		versions[i] = c.version
 		if c.version == "" {
 			silent++
+		}
+		if c.chosen != "" {
+			recorded++
 		}
 	}
 	alleles, minors := Alleles(versions)
 	counts := map[string]int{}
 	for i := range cells {
 		cells[i].allele = alleles[i]
-		counts[alleles[i]]++
+		if cells[i].chosen != "" {
+			// The node's own record beats an inference from versions.
+			cells[i].allele = cells[i].chosen
+		}
+		counts[cells[i].allele]++
 	}
 	fmt.Fprintf(out, "%-28s %-6s %-26s %s\n", "NODE", "ALLELE", "VERSION", "NOTE")
 	for _, c := range cells {
@@ -195,7 +251,19 @@ func renderMosaic(out io.Writer, cells []cell) {
 		note := strings.Join(notes, "; ")
 		fmt.Fprintf(out, "%-28s %-6s %-26s %s\n", c.node, c.allele, c.version, note)
 	}
+	expressed := 0
+	for _, a := range []string{"Xm", "Xp"} {
+		if counts[a] > 0 {
+			expressed++
+		}
+	}
 	switch {
+	case recorded == len(cells) && expressed == 2:
+		fmt.Fprintf(out, "\nMosaic: %d Xm, %d Xp, as each node chose at first boot. A bug in either build leaves the other half serving.\n", counts["Xm"], counts["Xp"])
+	case recorded == len(cells) && len(cells) == 1:
+		fmt.Fprintln(out, "\nOne control-plane node, one allele: no mosaic protection. Add control-plane nodes for it.")
+	case recorded == len(cells):
+		fmt.Fprintf(out, "\nEvery node chose %s, so a common-mode bug would hit them all. The choice is random per node; more control-plane nodes make a mosaic likelier.\n", cells[0].allele)
 	case silent > 0:
 		fmt.Fprintf(out, "\n%d of %d nodes aren't answering, so I can't tell the whole mosaic yet.\n", silent, len(cells))
 	case minors >= 2:

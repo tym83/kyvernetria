@@ -225,6 +225,51 @@ takes the node's kubelet off the cluster: the node goes NotReady and its
 pods are evicted, although two apiservers are still serving (seen in
 testing). Through haproxy, the node stays Ready throughout.
 
+## On kuberoot
+
+On [kuberoot](https://github.com/kuberoot-dev/kuberoot) (`hack/kuberoot.sh`)
+the control plane runs as node services under kinit, not as static pods,
+and the mosaic uses kuberoot's own mechanisms instead of the
+`x-inactivation` wrapper. The image carries `kube-apiserver.Xm` and
+`kube-apiserver.Xp`; the controller manager, the scheduler, kubelet,
+kube-proxy and kubectl are Xp builds, as on the kubeadm path.
+
+| | kubeadm path | kuberoot |
+|---|---|---|
+| Who chooses | the wrapper, at the apiserver container's first start | kinit, at the node's first boot (service alternatives) |
+| State | `/var/lib/kyvernetria/x-inactivation` | `/var/lib/kuberoot/alternatives/kube-apiserver.json`: the choice, when it was made, the last switch |
+| Where it shows | `kyvctl mosaic` asks each apiserver pod | the Node label `alternative.kuberoot.dev/kube-apiserver`, kept by kuberoot-node; `status.alternative` of the node service; `kyvctl mosaic` reads the labels and asks each apiserver through the node proxy |
+| A crash | non-zero exit or a signal within 2 minutes of starting | non-zero exit, a signal or a failed start, within a minute of starting (kinit's own threshold for a run that was healthy), not asked for through the node API |
+| Escape | 5 crashes within 10 minutes | the same |
+| Held back | once per boot, 24 hours after an escape, `upgrading` flag | once per boot (kinit's memory), 24 hours after an escape, and while the booted slot is on probation |
+| Crash history | on disk, across container restarts | in kinit's memory, for the boot |
+| Pinning an allele | `KYVERNETRIA_ALLELE` in the manifest | not available |
+
+The `upgrading` flag has no equivalent because kuberoot has a better one:
+an upgrade boots the new image on probation, and a release whose apiserver
+crash-loops fails its boot assessment and goes back to the previous slot.
+Switching alleles then would hide the failure, so kinit does not switch
+while the slot is on probation.
+
+Limits, beyond the kubeadm path's:
+
+- **Upgrades within the same pair of minors only.** A kuberoot Upgrade
+  replaces the whole image node by node, so moving from (1.37, 1.36) to
+  (1.38, 1.37) that way would put 1.36 and 1.38 apiservers side by side and
+  a 1.37 controller manager in front of 1.36 apiservers, outside the version
+  skew policy. The stepwise procedure above needs per-node pinning, which
+  kinit does not offer. Patch releases of the same two minors upgrade
+  normally; for the next pair of minors, build a new cluster and move the
+  workloads.
+- **A control plane's own components use its own apiserver**
+  (`127.0.0.1:6443`): while kube-apiserver crash-loops before an escape,
+  that node's kubelet, controller manager and scheduler lose the API, and
+  the node may turn NotReady for that time. Clients that reach the cluster
+  through the `kubernetes` Service or a worker's balancer move to the other
+  control planes.
+- **No shell on the node.** The choice cannot be edited by hand; a node
+  chooses again only if the profile stops offering its allele.
+
 ## Events are kept for 30 days
 
 Kyvernetria keeps events for 30 days instead of 1 hour, so busy clusters
