@@ -60,6 +60,13 @@ const PluginName = "Immunity"
 // MessagePrefix starts every rejection so that clients can recognize them.
 const MessagePrefix = "kyvernetria immunity"
 
+// PackagePrivilegedAnnotation is set by kubepkg, the package manager of
+// kuberoot, on a namespace where it raised Pod Security to privileged
+// because a package the cluster's admin installed runs privileged
+// components there. Such a namespace is tolerated like one labelled self:
+// its pods are tissue the cluster grew, not invaders.
+const PackagePrivilegedAnnotation = "kubepkg.dev/pod-security"
+
 // SelfNamespaces are tolerated without a label: the cluster's own organs.
 var SelfNamespaces = map[string]bool{
 	"kube-system":        true,
@@ -196,7 +203,7 @@ func (p *Plugin) isSelf(ctx context.Context, namespace string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return ns.Labels[kyvernetria.SelfLabel] == "true", nil
+	return ns.Labels[kyvernetria.SelfLabel] == "true" || ns.Annotations[PackagePrivilegedAnnotation] == "privileged", nil
 }
 
 // NewAntigens lists the antigens of pod that old did not already carry. For

@@ -432,7 +432,9 @@ the ConfigMap.
 ## Limits worth knowing
 
 - **Immunity is not a security boundary.** Anyone who can label a namespace
-  `kyvernetria.io/self=true` opts it out. Restrict who may update namespaces
+  `kyvernetria.io/self=true` (or annotate it
+  `kubepkg.dev/pod-security=privileged`, as kubepkg does for the packages it
+  installs) opts it out. Restrict who may update namespaces
   with RBAC, and use Pod Security Admission (`restricted` or `baseline`) for
   enforcement you can rely on.
 - **NoBruteForce is a speed bump.** It stops a reflexive
