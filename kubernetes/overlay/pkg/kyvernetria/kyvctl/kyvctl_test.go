@@ -294,6 +294,37 @@ func TestMosaic(t *testing.T) {
 	}
 }
 
+func TestMosaicFromNodeChoices(t *testing.T) {
+	// kuberoot: the node's own record of its choice names the allele, even
+	// when a node does not answer or both builds report one minor.
+	var out bytes.Buffer
+	renderMosaic(&out, []cell{
+		{node: "cp-1", chosen: "Xm", version: "v1.37.2-kyvernetria.0", emulated: "1.36"},
+		{node: "cp-2", chosen: "Xp", note: "not answering"},
+		{node: "cp-3", chosen: "Xp", version: "v1.36.6-kyvernetria.0"},
+	})
+	if !strings.Contains(out.String(), "Mosaic: 1 Xm, 2 Xp, as each node chose at first boot") ||
+		!strings.Contains(out.String(), "emulating 1.36") || !strings.Contains(out.String(), "not answering") {
+		t.Errorf("unexpected mosaic output:\n%s", out.String())
+	}
+	out.Reset()
+	renderMosaic(&out, []cell{{node: "cp-1", chosen: "Xp"}, {node: "cp-2", chosen: "Xp"}})
+	if !strings.Contains(out.String(), "Every node chose Xp") {
+		t.Errorf("a uniform choice was not called out:\n%s", out.String())
+	}
+}
+
+func TestChoiceCells(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "cp-1", Labels: map[string]string{ChoiceLabel: "Xm"}}},
+		&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "w-1"}},
+	)
+	cells, err := choiceCells(context.Background(), client)
+	if err != nil || len(cells) != 1 || cells[0].node != "cp-1" || cells[0].chosen != "Xm" {
+		t.Fatalf("cells %+v, %v", cells, err)
+	}
+}
+
 func TestRenderRelationships(t *testing.T) {
 	rel := func(ns, fromKind, from, typ, toKind, toNS, to string) unstructured.Unstructured {
 		return unstructured.Unstructured{Object: map[string]interface{}{

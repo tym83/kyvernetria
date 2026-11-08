@@ -33,9 +33,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Shell scripts
         run: |
-          find hack deploy -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          find hack deploy distro -name '*.sh' -print0 | xargs -0 -n1 bash -n
           shellcheck --version
-          find hack deploy -name '*.sh' -print0 | xargs -0 shellcheck -x
+          find hack deploy distro -name '*.sh' -print0 | xargs -0 shellcheck -x
+      - name: kuberoot profile
+        # The distribution rewrites kuberoot's edge profile; this fails when
+        # edge changes under it.
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/kuberoot-dev/kuberoot/main/distros/edge/profile.yaml -o "${RUNNER_TEMP}/edge.yaml"
+          python3 distro/kuberoot/kyvernetria/profile.py "${RUNNER_TEMP}/edge.yaml" 1.36 > "${RUNNER_TEMP}/kyvernetria.yaml"
+          grep -q 'program: /usr/bin/kube-apiserver.Xm' "${RUNNER_TEMP}/kyvernetria.yaml"
       - name: Alert rules
         env:
           PROMETHEUS: quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
