@@ -89,7 +89,8 @@ func TestValidate(t *testing.T) {
 		Spec:       api.PodSpec{Containers: []api.Container{{Name: "c", Image: "busybox:1.36"}}},
 	}
 	selfNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "mine", Labels: map[string]string{kyvernetria.SelfLabel: "true"}}}
-	p := newPlugin(t, selfNS, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}})
+	pkgNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "metallb-system", Annotations: map[string]string{PackagePrivilegedAnnotation: "privileged"}}}
+	p := newPlugin(t, selfNS, pkgNS, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}})
 
 	err := p.Validate(context.Background(), attrs("default", foreign), nil)
 	if err == nil {
@@ -108,6 +109,9 @@ func TestValidate(t *testing.T) {
 	}
 	if err := p.Validate(context.Background(), attrs("kube-system", foreign), nil); err != nil {
 		t.Errorf("kube-system not tolerated: %v", err)
+	}
+	if err := p.Validate(context.Background(), attrs("metallb-system", foreign), nil); err != nil {
+		t.Errorf("namespace kubepkg made privileged for a package not tolerated: %v", err)
 	}
 }
 

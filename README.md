@@ -311,7 +311,8 @@ upstream end of life, 2027-06-28, plus the 30-day upgrade grace). See
 - **Immunity is strict.** Namespaces running infrastructure (CNI, storage,
   monitoring) need `kubectl label namespace <ns> kyvernetria.io/self=true`.
   `kube-system`, `kube-public`, `kube-node-lease` and `local-path-storage` are
-  tolerated by default.
+  tolerated by default, and so is a namespace kubepkg (kuberoot's package
+  manager) made privileged for a package (`kubepkg.dev/pod-security=privileged`).
 - **Immunity is not a security boundary.** Anyone allowed to label namespaces
   can opt a namespace out, and NoBruteForce is only a speed bump. Keep Pod
   Security Admission and RBAC in place; Immunity does not replace them. More
