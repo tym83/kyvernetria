@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -100,7 +102,7 @@ func Screen(ctx context.Context, in Input, l Lookup) []Finding {
 	}
 	for _, c := range allContainers(tmpl) {
 		result, msg := l.Image(ctx, c.Image)
-		add(CheckImage, result, "%s: %s", c.Name, msg)
+		add(CheckImage, result, "container %s: %s", c.Name, msg)
 	}
 	out = append(out, screenReferences(ctx, d.Namespace, tmpl, l)...)
 	out = append(out, screenVolumes(d.Namespace, tmpl, l)...)
@@ -341,7 +343,7 @@ func screenQuota(g *Gestation, size, placenta v1.ResourceList, l Lookup) []Findi
 			avail.Sub(quota.Status.Used[name])
 			avail.Add(placenta[v1.ResourceName(strings.TrimPrefix(string(name), "requests."))])
 			if avail.Cmp(want) < 0 {
-				short = append(short, fmt.Sprintf("%s allows %s more %s, the launch needs %s", quota.Name, avail.String(), name, want.String()))
+				short = append(short, fmt.Sprintf("ResourceQuota %s allows %s more %s, the launch needs %s", quota.Name, avail.String(), name, want.String()))
 			}
 		}
 	}
@@ -444,5 +446,16 @@ func Summarize(reason string, findings []Finding) (warning bool, msg string) {
 	if len(concerns) == 0 {
 		return false, fmt.Sprintf("%s: all clear (%d checks).", what, len(findings))
 	}
-	return true, fmt.Sprintf("%s: %d to look at before the due date. %s.", what, len(concerns), concerns[0])
+	return true, fmt.Sprintf("%s: %d to look at before the due date. %s.", what, len(concerns), sentence(concerns[0]))
+}
+
+// sentence makes a finding, written to follow a colon, start a sentence of
+// its own: capitalized, without a trailing period (the caller adds one).
+func sentence(s string) string {
+	s = strings.TrimSuffix(strings.TrimSpace(s), ".")
+	r, size := utf8.DecodeRuneInString(s)
+	if r == utf8.RuneError {
+		return s
+	}
+	return string(unicode.ToUpper(r)) + s[size:]
 }

@@ -289,6 +289,25 @@ func TestPregnancyReservesInTrimesterSteps(t *testing.T) {
 	}
 }
 
+// The controller accepts the due dates kyvctl conceive accepts: the day of
+// conception and later.
+func TestDueDateFromTheDayOfConception(t *testing.T) {
+	h := newHarness(t)
+	h.patchSpec(map[string]interface{}{"due": api.Day(t0).AddDate(0, 0, -1).Format(time.DateOnly)})
+	h.sync()
+	if g := h.gestation(); !strings.Contains(g.Status.Message, "before the day it was conceived") || g.Status.Reserved != 0 {
+		t.Errorf("due before conception: %s reserved %d %q", g.Status.Phase, g.Status.Reserved, g.Status.Message)
+	}
+	if h.deployment("web-placenta") != nil {
+		t.Error("room reserved for a due date before conception")
+	}
+	h.patchSpec(map[string]interface{}{"due": api.Day(t0).Format(time.DateOnly)})
+	h.sync()
+	if g := h.gestation(); g.Status.Phase != api.PhaseDue || g.Status.Reserved != 3 {
+		t.Errorf("due on the day of conception: %s reserved %d %q", g.Status.Phase, g.Status.Reserved, g.Status.Message)
+	}
+}
+
 func TestScreeningOnRequest(t *testing.T) {
 	h := newHarness(t)
 	h.sync()

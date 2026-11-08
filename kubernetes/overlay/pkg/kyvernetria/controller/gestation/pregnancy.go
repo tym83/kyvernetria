@@ -43,7 +43,7 @@ const placentaHashAnnotation = kyvernetria.Prefix + "placenta-hash"
 
 // pregnancy reserves room in trimester steps and screens every trimester.
 func (c *Controller) pregnancy(ctx context.Context, g *api.Gestation, d *appsv1.Deployment, now time.Time) error {
-	due, err := g.Spec.DueTime()
+	due, err := g.Spec.DueSince(g.CreationTimestamp.Time)
 	if err != nil {
 		g.Status.Phase, g.Status.Message = api.PhaseExpecting, err.Error()
 		return nil

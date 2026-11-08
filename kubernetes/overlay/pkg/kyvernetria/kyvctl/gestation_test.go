@@ -57,12 +57,13 @@ func TestConceiveValidates(t *testing.T) {
 		o    ConceiveOptions
 		want string
 	}{
-		"bad date":   {ConceiveOptions{Due: "1 Nov", Size: "1/1Gi", Replicas: 1}, "--due needs a date"},
-		"past":       {ConceiveOptions{Due: "2026-10-01", Size: "1/1Gi", Replicas: 1}, "not in the future"},
-		"no slash":   {ConceiveOptions{Due: "2026-11-01", Size: "1Gi", Replicas: 1}, "CPU/MEMORY"},
-		"bad size":   {ConceiveOptions{Due: "2026-11-01", Size: "lots/1Gi", Replicas: 1}, "--size"},
-		"zero size":  {ConceiveOptions{Due: "2026-11-01", Size: "0/1Gi", Replicas: 1}, "positive"},
-		"no replica": {ConceiveOptions{Due: "2026-11-01", Size: "1/1Gi", Replicas: 0}, "--replicas"},
+		"bad date":    {ConceiveOptions{Due: "1 Nov", Size: "1/1Gi", Replicas: 1}, "--due needs a date"},
+		"past":        {ConceiveOptions{Due: "2026-10-03", Size: "1/1Gi", Replicas: 1}, "before the day it was conceived, 2026-10-04"},
+		"no such day": {ConceiveOptions{Due: "2026-02-30", Size: "1/1Gi", Replicas: 1}, "--due needs a date"},
+		"no slash":    {ConceiveOptions{Due: "2026-11-01", Size: "1Gi", Replicas: 1}, "CPU/MEMORY"},
+		"bad size":    {ConceiveOptions{Due: "2026-11-01", Size: "lots/1Gi", Replicas: 1}, "--size"},
+		"zero size":   {ConceiveOptions{Due: "2026-11-01", Size: "0/1Gi", Replicas: 1}, "positive"},
+		"no replica":  {ConceiveOptions{Due: "2026-11-01", Size: "1/1Gi", Replicas: 0}, "--replicas"},
 	} {
 		if _, err := Conceive(context.Background(), dyn, "shop", "web", tc.o, conceivedAt); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: %v", name, err)
@@ -84,6 +85,17 @@ func TestConceiveValidates(t *testing.T) {
 	renderConceived(&out, g, time.Date(2026, 10, 31, 9, 0, 0, 0, time.UTC))
 	if !strings.Contains(out.String(), "due 2026-11-01 (in 1 day).") {
 		t.Errorf("conceive output a day before:\n%s", out.String())
+	}
+	// Due today, as a direct write to the API may say: the controller
+	// accepts it, so kyvctl does too.
+	today, err := Conceive(context.Background(), dyn, "shop", "today", ConceiveOptions{Due: "2026-10-04", Size: "1/1Gi", Replicas: 1}, conceivedAt)
+	if err != nil {
+		t.Fatalf("due today: %v", err)
+	}
+	out.Reset()
+	renderConceived(&out, today, conceivedAt)
+	if !strings.Contains(out.String(), "due 2026-10-04 (today).") {
+		t.Errorf("conceive output, due today:\n%s", out.String())
 	}
 	if _, err := Conceive(context.Background(), dyn, "shop", "web", ok, conceivedAt); err == nil || !strings.Contains(err.Error(), "already on its way") {
 		t.Errorf("conceiving twice: %v", err)
@@ -168,8 +180,13 @@ func TestMemoryRendering(t *testing.T) {
 	}
 	out.Reset()
 	renderMemory(&out, records, true)
-	if !strings.Contains(out.String(), "still here") {
+	if !strings.Contains(out.String(), "still here") || !strings.Contains(out.String(), "You were here once") {
 		t.Errorf("remember --all:\n%s", out.String())
+	}
+	out.Reset()
+	renderMemory(&out, records[1:], true)
+	if s := out.String(); !strings.Contains(s, "shop/web") || strings.Contains(s, "You were here once") {
+		t.Errorf("remember --all, every service still here:\n%s", s)
 	}
 	if none, err := Memory(context.Background(), fake.NewSimpleClientset()); err != nil || none != nil {
 		t.Errorf("no memory yet: %v %v", none, err)

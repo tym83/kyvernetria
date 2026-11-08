@@ -282,6 +282,12 @@ namespace with a ResourceQuota the placeholders count against it, which
 reserves the quota too; screening counts their share as available for the
 launch.
 
+The due date is a day in UTC and may be the day of conception itself: a
+Gestation due today reserves all of its room at once and waits to be
+delivered. A due date before the day of conception is refused, by
+`kyvctl conceive` and, for objects written directly, by the controller,
+which then reserves nothing and says why in `status.message`.
+
 ### Prenatal screening
 
 Once per trimester and on `kyvctl screen`. Findings are `clear`, `info`,

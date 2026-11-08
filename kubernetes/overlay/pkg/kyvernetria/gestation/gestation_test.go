@@ -255,6 +255,19 @@ func TestScreenFindsProblems(t *testing.T) {
 	}
 }
 
+func TestSummarizeStartsEachSentenceCapitalized(t *testing.T) {
+	for _, tc := range []struct{ concern, want string }{
+		{"it needs what isn't there yet: Secret db", "Prenatal screening: 1 to look at before the due date. It needs what isn't there yet: Secret db."},
+		{"container web: \"x\" is not a valid image reference.", "Prenatal screening: 1 to look at before the due date. Container web: \"x\" is not a valid image reference."},
+		{"ResourceQuota small allows 1 more pods, the launch needs 3", "Prenatal screening: 1 to look at before the due date. ResourceQuota small allows 1 more pods, the launch needs 3."},
+	} {
+		_, msg := Summarize("requested", []Finding{{Check: CheckReferences, Result: ResultFail, Message: tc.concern}})
+		if msg != tc.want {
+			t.Errorf("summary:\n got %q\nwant %q", msg, tc.want)
+		}
+	}
+}
+
 func TestScreenQuotaCountsPlacentaAsAvailable(t *testing.T) {
 	l := healthyLookup()
 	l.quotas = []*v1.ResourceQuota{{
