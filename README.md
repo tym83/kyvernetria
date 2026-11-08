@@ -57,8 +57,8 @@ small wrapper, `x-inactivation`:
 
 ```text
 /usr/local/bin/kube-apiserver      x-inactivation
-/usr/local/bin/kube-apiserver.Xm   built from Kubernetes v1.37.0 + Kyvernetria
-/usr/local/bin/kube-apiserver.Xp   built from Kubernetes v1.36.4 + Kyvernetria
+/usr/local/bin/kube-apiserver.Xm   built from Kubernetes v1.37.2 + Kyvernetria
+/usr/local/bin/kube-apiserver.Xp   built from Kubernetes v1.36.6 + Kyvernetria
 ```
 
 kube-controller-manager and kube-scheduler always run the older allele (Xp).
@@ -185,7 +185,7 @@ day-2 operations are described in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ```bash
 hack/build.sh images     # kind node image with both alleles
-kind create cluster --config deploy/kind/mosaic.yaml --image kyvernetria/node:v1.37.0-kyvernetria.0
+kind create cluster --config deploy/kind/mosaic.yaml --image kyvernetria/node:v1.37.2-kyvernetria.0
 ```
 
 Four nodes on one machine need about 8 GB for Docker and raised inotify limits
@@ -266,7 +266,7 @@ follow new releases:
   pin the old defaults. Only expected values change, never test logic.
 - `x-inactivation/` is the mosaic wrapper.
 
-Supported upstream releases: v1.37.0 (Xm) and v1.36.4 (Xp). A release is
+Supported upstream releases: v1.37.2 (Xm) and v1.36.6 (Xp). A release is
 supported as long as its older minor: until 2027-07-28 for this one (1.36's
 upstream end of life, 2027-06-28, plus the 30-day upgrade grace). See
 [docs/OPERATIONS.md](docs/OPERATIONS.md#support-window).

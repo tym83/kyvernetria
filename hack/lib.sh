@@ -2,7 +2,7 @@
 # Helpers shared by the hack/ scripts. Source it, do not run it.
 
 # tree_minor prints the Kubernetes major.minor of a checkout (1.37 for
-# v1.37.0), from KYVERNETRIA_MINOR or the tag the checkout is on.
+# v1.37.2), from KYVERNETRIA_MINOR or the tag the checkout is on.
 tree_minor() { # tree
   local tag minor
   if [ -n "${KYVERNETRIA_MINOR:-}" ]; then

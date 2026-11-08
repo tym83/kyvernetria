@@ -8,7 +8,7 @@
 #   hack/build.sh release    # binaries + images for plain VMs (deploy/vms)
 #
 # Environment:
-#   XM, XP     upstream tags of the two alleles   (default v1.37.0, v1.36.4)
+#   XM, XP     upstream tags of the two alleles   (default v1.37.2, v1.36.6)
 #   REV        Kyvernetria revision                (default 0)
 #   ARCH       target architecture                 (default: go env GOARCH)
 #   WORK       scratch directory for the trees     (default: _work)
@@ -19,8 +19,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-XM="${XM:-v1.37.0}"
-XP="${XP:-v1.36.4}"
+XM="${XM:-v1.37.2}"
+XP="${XP:-v1.36.6}"
 REV="${REV:-0}"
 ARCH="${ARCH:-$(go env GOARCH)}"
 WORK="${WORK:-${root}/_work}"
@@ -28,7 +28,7 @@ REGISTRY="${REGISTRY:-ghcr.io/tym83/kyvernetria}"
 OUT="${root}/_output"
 VERSION="${XM}-kyvernetria.${REV}"   # what the cluster reports
 XP_VERSION="${XP}-kyvernetria.${REV}"
-XP_MINOR="${XP#v}"; XP_MINOR="${XP_MINOR%.*}"   # v1.36.4 -> 1.36
+XP_MINOR="${XP#v}"; XP_MINOR="${XP_MINOR%.*}"   # v1.36.6 -> 1.36
 NODE_IMAGE="${NODE_IMAGE:-kyvernetria/node:${VERSION}}"
 CRANE_VERSION="v0.22.1"
 TAGS="selinux,notest,grpcnotrace"   # what upstream release builds use
@@ -39,10 +39,10 @@ log() { printf '\n==> %s\n' "$*"; }
 # upstream image, so a moved tag cannot change what we build on.
 pinned_digest() {
   case "$1" in
-    registry.k8s.io/kube-apiserver:v1.37.0) echo sha256:d1045e5c6d2f016797d22143eba7502e1bb712a4681836a7c35763a9c192dd70 ;;
-    registry.k8s.io/kube-controller-manager:v1.37.0) echo sha256:997c997924eb8574f63f204a0b0af133aaf33c10df84009c32d34037f4e0e077 ;;
-    registry.k8s.io/kube-scheduler:v1.37.0) echo sha256:a27622f132aa09cf2461ba077894a070c0186ec607366d14e805912d4804d11f ;;
-    registry.k8s.io/kube-proxy:v1.36.4) echo sha256:b33fcdd8319290736e566f5fc2225ca07d3c2dfc025fb006342791aa31be4603 ;;
+    registry.k8s.io/kube-apiserver:v1.37.2) echo sha256:3e563afb5cb5b72a10bac7012698dd09f5a42bde7d22de8d7d3c12e654df86b4 ;;
+    registry.k8s.io/kube-controller-manager:v1.37.2) echo sha256:28e62daf706ed815a8bd1dd27b03294ba09421b2e1674e9a83bbac38e24ceb0c ;;
+    registry.k8s.io/kube-scheduler:v1.37.2) echo sha256:028c847fc321b8a7f9787f7b1c0840f832d6b68439be2e5c09279ffb14203d6b ;;
+    registry.k8s.io/kube-proxy:v1.36.6) echo sha256:70871b645aecbca013bfb8254ce29f49143822054b743b78485db1f5f0d5de2c ;;
     registry.k8s.io/pause:3.10.2) echo sha256:f548e0e8e3dc1896ca956272154dde3314e8cc4fde0a57577ee9fa1c63f5baf4 ;;
   esac
 }

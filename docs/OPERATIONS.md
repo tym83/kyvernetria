@@ -7,7 +7,7 @@ limits of some features.
 ## The mosaic and the version skew policy
 
 Each control-plane image carries two builds of its component: Xm, built from
-the newer minor (v1.37.0), and Xp, built from the older one (v1.36.4). The
+the newer minor (v1.37.2), and Xp, built from the older one (v1.36.6). The
 `x-inactivation` wrapper picks one when the container starts.
 
 The [version skew policy](https://kubernetes.io/releases/version-skew-policy/)
@@ -92,7 +92,7 @@ upstream's pause image retagged under the Kyvernetria repository, because
 kubeadm looks for pause under `imageRepository`.
 
 - **kube-proxy** carries the Xp build but is tagged with the cluster version
-  (`v1.37.0-kyvernetria.0`), because kubeadm derives its tag from
+  (`v1.37.2-kyvernetria.0`), because kubeadm derives its tag from
   `kubernetesVersion`. The image labels `io.kyvernetria.allele=Xp` and
   `org.opencontainers.image.version` say what is inside.
 - **kind** node images keep `registry.k8s.io/...` names internally. kind
