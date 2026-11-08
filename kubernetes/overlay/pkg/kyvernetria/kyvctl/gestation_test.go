@@ -180,8 +180,13 @@ func TestMemoryRendering(t *testing.T) {
 	}
 	out.Reset()
 	renderMemory(&out, records, true)
-	if !strings.Contains(out.String(), "still here") {
+	if !strings.Contains(out.String(), "still here") || !strings.Contains(out.String(), "You were here once") {
 		t.Errorf("remember --all:\n%s", out.String())
+	}
+	out.Reset()
+	renderMemory(&out, records[1:], true)
+	if s := out.String(); !strings.Contains(s, "shop/web") || strings.Contains(s, "You were here once") {
+		t.Errorf("remember --all, every service still here:\n%s", s)
 	}
 	if none, err := Memory(context.Background(), fake.NewSimpleClientset()); err != nil || none != nil {
 		t.Errorf("no memory yet: %v %v", none, err)

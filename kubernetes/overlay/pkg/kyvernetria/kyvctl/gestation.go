@@ -576,7 +576,14 @@ func renderMemory(out io.Writer, records []api.Record, all bool) {
 			orDefault(strings.Join(r.Owners, ", "), "-"), orDefault(strings.Join(r.Dependencies, ", "), "-"), orDefault(r.ConfigDigest, "-"))
 	}
 	w.Flush()
-	fmt.Fprintf(out, "\n%s\n", api.Remembrance)
+	// The remembrance speaks to services that are gone; --all also lists
+	// the ones still here, and a list of only those gets no farewell.
+	for _, r := range shown {
+		if r.Departed() {
+			fmt.Fprintf(out, "\n%s\n", api.Remembrance)
+			return
+		}
+	}
 }
 
 func shortDate(stamp string) string {
