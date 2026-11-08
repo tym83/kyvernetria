@@ -8,7 +8,8 @@ from.
 
 Last verified: 2026-09-24; claims 7 and 8 and the new claim 37 re-checked
 on 2026-10-04 (claim 5 only gained arithmetic on its verified numbers);
-claims 38 to 44 (Gestation) added on 2026-10-04. All numbers below were checked against the cited
+claims 38 to 44 (Gestation) added on 2026-10-04; claims 27 and 31
+re-checked against their abstracts on 2026-11-08. All numbers below were checked against the cited
 primary source (abstract or full text) or, where marked, against a reliable
 secondary summary of it. Nothing here is taken from memory.
 
@@ -538,6 +539,22 @@ innate or fixed.
   that there is a diagnostic bias against girls. Camouflaging (masking
   autistic traits) is one proposed reason autistic girls and women are missed;
   the evidence base is still developing (Hull et al., 2020, narrative review).
+  The review states the alternative too: a "female protective effect", something
+  about being female that makes autism less likely. Its own reading is that
+  autism is underdiagnosed in females, "perhaps because females express their
+  autism in ways which do not meet current diagnostic criteria", and that the
+  evidence so far supports a female-typical presentation, with more study
+  needed across genders and ages.
+- **What this means for Kyvernetria:** the principle borrowed is about the
+  instrument, not about the people it misses: a check built around one
+  presentation passes cases that present differently. `kyvctl checkup` looks
+  past a pod's Ready condition, which is the cluster's surface check, for
+  signs Ready does not show: recent restarts, an OOM kill, and readiness
+  probes that cannot see the application. It looks only at Ready pods, the
+  ones nothing else flags. It does not model autism, camouflaging as a
+  behaviour, or any claim that something is wrong with the pods' "nature";
+  and since the evidence is a narrative review, the feature is a light,
+  read-only check.
 - **Sources:**
   - Loomes, R., Hull, L., & Mandy, W. P. L. (2017). What is the male-to-female ratio in autism spectrum disorder? A systematic review and meta-analysis. *Journal of the American Academy of Child & Adolescent Psychiatry*, 56(6), 466–474. https://doi.org/10.1016/j.jaac.2017.03.013
   - Hull, L., Petrides, K. V., & Mandy, W. (2020). The female autism phenotype and camouflaging: a narrative review. *Review Journal of Autism and Developmental Disorders*, 7, 306–317. https://doi.org/10.1007/s40489-020-00197-9
@@ -609,7 +626,25 @@ innate or fixed.
   (2) in change from below, women are usually the innovators and lead men.
   Labov also describes a "gender paradox": women conform more to overt
   standard norms but lead changes that are not yet noticed. Men lead some
-  changes, and the pattern interacts with social class.
+  changes, and the pattern interacts with social class. Labov (1990) proposes
+  two processes: the asymmetric context of language learning speeds up
+  female-led changes from the start, and women lead in rejecting changes
+  once the speech community recognises them.
+- **What this means for Kyvernetria:** not built. We looked for a version of
+  "early alpha API adoption plus strict label conventions" that stays faithful
+  to the claim and is safe, and found none:
+  - The innovation half is change *from below*, below the level of awareness,
+    in a speech community over generations. Turning on alpha APIs is the
+    opposite: a deliberate, visible switch an operator makes, and upstream
+    already offers it (`--feature-gates`, `--runtime-config`). Enabling them by
+    default would also be harmful: alpha APIs may change incompatibly or lose
+    data between releases, and in the mosaic they would break the rule that
+    both alleles serve the same API (an Xm apiserver emulates the Xp minor,
+    which is exactly what keeps the newer minor's alpha APIs off).
+  - The conformity half alone (warnings on non-standard or deprecated labels)
+    is harmless, but on its own it would model only "women conform more", the
+    stereotyped half of what Labov calls a paradox, and drop the innovation
+    that the claim pairs it with.
 - **Sources:**
   - Labov, W. (1990). The intersection of sex and social class in the course of linguistic change. *Language Variation and Change*, 2(2), 205–254. https://doi.org/10.1017/S0954394500000338
   - Labov, W. (2001). *Principles of Linguistic Change, Vol. 2: Social Factors*. Oxford: Blackwell.
@@ -986,9 +1021,9 @@ should consider removing the feature.
 | 22 | Higher average neuroticism (d ≈ 0.39) | Earlier warnings plus a "calm" summariser | OK. Frame as vigilance; see "not modelled" below. |
 | 24 | Less physical aggression (moderate to large) | No force-delete | OK |
 | 24 | Indirect aggression similar or slightly higher in girls (trivial in youth) | "exclude" (remove a pod from endpoints) | OK |
-| 27 | Camouflaging contributes to under-diagnosis of autistic girls | Deeper health checks | OK. The evidence is still developing (narrative review). |
+| 27 | Autism is under-diagnosed in girls and women, perhaps because it presents in ways current criteria were not built to see; camouflaging is one proposed part of it | `kyvctl checkup`: in Ready pods, signs Ready does not show (recent restarts, OOM kills, readiness probes that cannot see the application) | OK. The evidence is still developing (narrative review); the principle borrowed is about the instrument, not the people it misses. |
 | 28 | Women and men speak a similar number of words per day | Same log volume as upstream, not chattier | OK |
-| 31 | Women lead most changes from below and use fewer stigmatised stable variants | Early alpha API adoption plus strict label conventions | OK |
+| 31 | Women lead most changes from below and use fewer stigmatised stable variants | Early alpha API adoption plus strict label conventions | Not built. No version is both faithful (change from below is not a deliberate opt-in; conformity alone keeps only the stereotyped half) and safe (alpha APIs by default, and they would split the mosaic's API); see claim 31. |
 | 32 | More pronouns and social words, small effect | Human-readable error messages | OK. Based on word use only; verbal fluency (claim 14) is not a basis. |
 | 29 | Girls slightly ahead in early language, small effect | Fast first output during bootstrap | OK |
 
