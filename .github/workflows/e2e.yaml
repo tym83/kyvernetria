@@ -1,0 +1,92 @@
+name: e2e
+
+# Builds the kind node image from source (both alleles, hack/build.sh all)
+# and checks Kyvernetria's admission behaviour on a live cluster. Heavy, so
+# it runs only when the cluster's build can change.
+on:
+  pull_request:
+    paths:
+      - kubernetes/**
+      - x-inactivation/**
+      - hack/build.sh
+      - hack/apply.sh
+      - hack/lib.sh
+      - hack/e2e-*.sh
+      - deploy/kind/**
+      - .github/workflows/e2e.yaml
+  push:
+    branches: [main]
+    paths:
+      - kubernetes/**
+      - x-inactivation/**
+      - hack/build.sh
+      - hack/apply.sh
+      - hack/lib.sh
+      - hack/e2e-*.sh
+      - deploy/kind/**
+      - .github/workflows/e2e.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  KIND_VERSION: v0.33.0
+
+# Actions are pinned by commit; the comment names the release.
+jobs:
+  kind:
+    # Each kube-apiserver allele carries the patch series; check both.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - allele: Xm
+            version: v1.37.
+          - allele: Xp
+            version: v1.36.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: x-inactivation/go.mod
+          cache: false
+      - name: Install kind
+        run: |
+          GOBIN="${RUNNER_TEMP}/bin" go install "sigs.k8s.io/kind@${KIND_VERSION}"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+      - name: Build the node image
+        run: |
+          start=$(date +%s)
+          hack/build.sh all
+          echo "build took $(( ($(date +%s) - start) / 60 )) min"
+          df -h /
+          du -sh _work "$(go env GOCACHE)" "$(go env GOMODCACHE)" || true
+      - name: Create the cluster
+        run: |
+          # One control-plane node with mosaic.yaml's settings, its apiserver
+          # pinned to one allele.
+          yq '.nodes = [{"role": "control-plane"}] | .kubeadmConfigPatches += [strenv(PIN)]' \
+            deploy/kind/mosaic.yaml > "${RUNNER_TEMP}/kind.yaml"
+          cat "${RUNNER_TEMP}/kind.yaml"
+          image="$(docker images --format '{{.Repository}}:{{.Tag}}' kyvernetria/node | grep -v -- '-base$' | head -n1)"
+          kind create cluster --config "${RUNNER_TEMP}/kind.yaml" --image "${image}" --wait 5m
+          kubectl --context kind-kyvernetria version -o json | yq -p json -e '.serverVersion.gitVersion | test("^${{ matrix.version }}")'
+        env:
+          PIN: |
+            kind: ClusterConfiguration
+            apiServer:
+              extraEnvs:
+                - name: KYVERNETRIA_ALLELE
+                  value: ${{ matrix.allele }}
+      - name: Immunity
+        run: KUBECTL="kubectl --context kind-kyvernetria" hack/e2e-immunity.sh
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl --context kind-kyvernetria get pods -A -o wide || true
+          kubectl --context kind-kyvernetria get events -A --sort-by=.lastTimestamp | tail -50 || true
+          docker exec kyvernetria-control-plane crictl ps -a || true
+          docker exec kyvernetria-control-plane journalctl -u kubelet --no-pager | tail -100 || true
